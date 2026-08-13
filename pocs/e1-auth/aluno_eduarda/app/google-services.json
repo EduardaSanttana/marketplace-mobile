@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1028625886305",
+    "project_id": "marketplace-ddm2-94de8",
+    "storage_bucket": "marketplace-ddm2-94de8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1028625886305:android:596b68198abb86e2790e20",
+        "android_client_info": {
+          "package_name": "com.example.aluno_eduarda"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA8Lx8n2dZr3c-aRhZJEe4uVGhgVjntaEs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
