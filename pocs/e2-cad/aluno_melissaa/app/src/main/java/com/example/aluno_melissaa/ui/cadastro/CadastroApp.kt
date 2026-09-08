@@ -14,7 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.aluno_melissaa.ui.CadastroViewModel
 
-private val abas = listOf("Produtos", "Negociantes", "Avaliações")
+private val abas = listOf("Produtos", "Negociantes", "Avaliações", "Sincronização")
 
 @Composable
 fun CadastroApp() {
@@ -39,6 +39,7 @@ fun CadastroApp() {
             0 -> ProdutoScreen(viewModel, Modifier.padding(innerPadding))
             1 -> NegocianteScreen(viewModel, Modifier.padding(innerPadding))
             2 -> AvaliacaoScreen(viewModel, Modifier.padding(innerPadding))
+            3 -> SyncScreen(viewModel, Modifier.padding(innerPadding))
         }
     }
 }

@@ -7,7 +7,11 @@ import androidx.room.PrimaryKey
 data class Avaliacao(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val produtoId: Long,
-    val nota: Int,
-    val comentario: String
+    val produtoId: Long = 0,
+    val nota: Int = 0,
+    val comentario: String = "",
+    val firestoreId: String? = null,
+    val updatedAt: Long = System.currentTimeMillis(),
+    val pendingSync: Boolean = true,
+    val pendingDelete: Boolean = false
 )

@@ -7,9 +7,13 @@ import androidx.room.PrimaryKey
 data class Produto(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val nome: String,
-    val descricao: String,
-    val preco: Double,
-    val quantidade: Int,
-    val negocianteId: Long
+    val nome: String = "",
+    val descricao: String = "",
+    val preco: Double = 0.0,
+    val quantidade: Int = 0,
+    val negocianteId: Long = 0,
+    val firestoreId: String? = null,
+    val updatedAt: Long = System.currentTimeMillis(),
+    val pendingSync: Boolean = true,
+    val pendingDelete: Boolean = false
 )

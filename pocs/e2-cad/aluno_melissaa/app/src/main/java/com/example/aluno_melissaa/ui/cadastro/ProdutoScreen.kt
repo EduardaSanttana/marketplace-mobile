@@ -99,6 +99,13 @@ fun ProdutoScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier) {
                     Text("Preço: ${produto.preco}")
                     Text("Quantidade: ${produto.quantidade}")
                     Text("Negociante: ${produto.negocianteId}")
+                    Text(if (produto.pendingSync) "⏳ Pendente de sincronização" else "☁ Sincronizado")
+                    Button(
+                        onClick = { viewModel.excluirProduto(produto) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Excluir")
+                    }
                 }
             }
         }
