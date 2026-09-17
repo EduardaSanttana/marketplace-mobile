@@ -1,54 +1,58 @@
 package edu.ifsp.marketplace.ui.theme
 
-import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = InfraBlue80,
+    onPrimary = InfraBlue20,
+    primaryContainer = InfraBlue30,
+    onPrimaryContainer = InfraBlue90,
+    secondary = InfraCyan80,
+    onSecondary = InfraNavy10,
+    secondaryContainer = InfraBlue20,
+    onSecondaryContainer = InfraCyan90,
+    tertiary = InfraCyan80,
+    background = InfraNavy10,
+    onBackground = InfraGray90,
+    surface = InfraNavy20,
+    onSurface = InfraGray90,
+    surfaceVariant = Color(0xFF2A3142),
+    onSurfaceVariant = InfraGray90,
+    error = Color(0xFFFFB4AB),
+    errorContainer = Color(0xFF93000A)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = InfraBlue40,
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = InfraBlue90,
+    onPrimaryContainer = InfraBlue10,
+    secondary = InfraCyan40,
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = InfraCyan90,
+    onSecondaryContainer = InfraBlue10,
+    tertiary = InfraCyan40,
+    background = InfraGray95,
+    onBackground = InfraGray10,
+    surface = InfraGray99,
+    onSurface = InfraGray10,
+    surfaceVariant = InfraGray90,
+    onSurfaceVariant = Color(0xFF44474F),
+    error = InfraError,
+    errorContainer = InfraErrorContainer
 )
 
 @Composable
 fun MarketplaceTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     MaterialTheme(
         colorScheme = colorScheme,

@@ -31,7 +31,13 @@ class MainActivity : ComponentActivity() {
                 var usuarioLogado by remember { mutableStateOf(auth.currentUser != null) }
 
                 if (usuarioLogado) {
-                    CadastroApp()
+                    CadastroApp(
+                        usuarioEmail = auth.currentUser?.email,
+                        onLogout = {
+                            auth.signOut()
+                            usuarioLogado = false
+                        }
+                    )
                 } else {
                     LoginScreen(
                         onLogin = { email, senha ->
