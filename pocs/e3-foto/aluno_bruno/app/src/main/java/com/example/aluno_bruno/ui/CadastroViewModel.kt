@@ -1,14 +1,15 @@
-package edu.ifsp.marketplace.ui
+package com.example.aluno_bruno.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import edu.ifsp.marketplace.data.AppDatabase
-import edu.ifsp.marketplace.data.Avaliacao
-import edu.ifsp.marketplace.data.Negociante
-import edu.ifsp.marketplace.data.Produto
-import edu.ifsp.marketplace.data.sync.SyncManager
-import edu.ifsp.marketplace.data.sync.observarConectividade
+import com.example.aluno_bruno.data.AppDatabase
+import com.example.aluno_bruno.data.Avaliacao
+import com.example.aluno_bruno.data.Negociante
+import com.example.aluno_bruno.data.Produto
+import com.example.aluno_bruno.data.sync.SyncManager
+import com.example.aluno_bruno.data.sync.SyncStatus
+import com.example.aluno_bruno.data.sync.observarConectividade
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filter
@@ -29,13 +30,24 @@ class CadastroViewModel(application: Application) : AndroidViewModel(application
     val avaliacoes: StateFlow<List<Avaliacao>> = db.avaliacaoDao().getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val syncStatus: StateFlow<SyncStatus> = syncManager.status
+    val ultimaSincronizacao: StateFlow<Long?> = syncManager.ultimaSincronizacao
+
     init {
+        // Nuvem -> SQLite: assina mudanças em tempo real assim que o app abre.
         syncManager.startRealtimeSync()
 
+        // SQLite -> nuvem: sempre que a conectividade voltar, envia o que ficou pendente offline.
         viewModelScope.launch {
             observarConectividade(application).filter { conectado -> conectado }.collect {
                 syncManager.syncAgora()
             }
+        }
+    }
+
+    fun sincronizarAgora() {
+        viewModelScope.launch {
+            syncManager.syncAgora()
         }
     }
 

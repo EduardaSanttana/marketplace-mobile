@@ -1,4 +1,4 @@
-package edu.ifsp.marketplace.data
+package com.example.aluno_bruno.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey

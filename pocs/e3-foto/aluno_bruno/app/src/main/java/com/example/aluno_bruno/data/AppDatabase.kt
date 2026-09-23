@@ -1,4 +1,4 @@
-package edu.ifsp.marketplace.data
+package com.example.aluno_bruno.data
 
 import android.content.Context
 import androidx.room.Database
@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [Produto::class, Negociante::class, Avaliacao::class],
-    version = 3,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

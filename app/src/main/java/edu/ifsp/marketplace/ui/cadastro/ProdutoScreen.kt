@@ -1,5 +1,10 @@
 package edu.ifsp.marketplace.ui.cadastro
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,8 +22,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.Card
@@ -26,6 +33,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,10 +44,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import coil.compose.AsyncImage
 import edu.ifsp.marketplace.ui.CadastroViewModel
+import edu.ifsp.marketplace.util.criarArquivoParaCaptura
+import edu.ifsp.marketplace.util.salvarFotoLocal
+import java.io.File
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -50,6 +66,47 @@ fun ProdutoScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier) {
     var preco by remember { mutableStateOf("") }
     var quantidade by remember { mutableStateOf("") }
     var negocianteId by remember { mutableStateOf("") }
+    var fotoPath by remember { mutableStateOf<String?>(null) }
+
+    val contexto = LocalContext.current
+    val seletorDeImagem = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            fotoPath = salvarFotoLocal(contexto, uri)
+        }
+    }
+
+    var capturaPendente by remember { mutableStateOf<Pair<String, Uri>?>(null) }
+    val capturaDeFoto = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { sucesso ->
+        if (sucesso) {
+            fotoPath = capturaPendente?.first
+        }
+        capturaPendente = null
+    }
+    val solicitarPermissaoCamera = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { concedida ->
+        if (concedida) {
+            val (caminho, uri) = criarArquivoParaCaptura(contexto)
+            capturaPendente = caminho to uri
+            capturaDeFoto.launch(uri)
+        }
+    }
+    val abrirCamera = {
+        val temPermissao = ContextCompat.checkSelfPermission(
+            contexto, Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+        if (temPermissao) {
+            val (caminho, uri) = criarArquivoParaCaptura(contexto)
+            capturaPendente = caminho to uri
+            capturaDeFoto.launch(uri)
+        } else {
+            solicitarPermissaoCamera.launch(Manifest.permission.CAMERA)
+        }
+    }
 
     val produtos by viewModel.produtos.collectAsState()
     val moeda = remember { NumberFormat.getCurrencyInstance(Locale("pt", "BR")) }
@@ -101,6 +158,11 @@ fun ProdutoScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier) {
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
+                SeletorDeFoto(
+                    fotoPath = fotoPath,
+                    onEscolherDaGaleria = { seletorDeImagem.launch("image/*") },
+                    onTirarFoto = abrirCamera
+                )
                 BotaoSalvar(
                     habilitado = nome.isNotBlank(),
                     onClick = {
@@ -109,13 +171,15 @@ fun ProdutoScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier) {
                             descricao = descricao,
                             preco = preco.toDoubleOrNull() ?: 0.0,
                             quantidade = quantidade.toIntOrNull() ?: 0,
-                            negocianteId = negocianteId.toLongOrNull() ?: 0L
+                            negocianteId = negocianteId.toLongOrNull() ?: 0L,
+                            fotoPath = fotoPath
                         )
                         nome = ""
                         descricao = ""
                         preco = ""
                         quantidade = ""
                         negocianteId = ""
+                        fotoPath = null
                     }
                 )
             }
@@ -141,7 +205,19 @@ fun ProdutoScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconeCircular(icone = Icons.Filled.ShoppingBag)
+                    if (produto.fotoPath != null) {
+                        AsyncImage(
+                            model = File(produto.fotoPath),
+                            contentDescription = produto.nome,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                        )
+                    } else {
+                        IconeCircular(icone = Icons.Filled.ShoppingBag)
+                    }
                     Spacer12Horizontal()
                     Column(modifier = Modifier.weight(1f)) {
                         Text(produto.nome, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -213,6 +289,39 @@ internal fun SecaoFormulario(
                 Text(titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
             content()
+        }
+    }
+}
+
+@Composable
+internal fun SeletorDeFoto(
+    fotoPath: String?,
+    onEscolherDaGaleria: () -> Unit,
+    onTirarFoto: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (fotoPath != null) {
+            AsyncImage(
+                model = File(fotoPath),
+                contentDescription = "Foto do produto",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(96.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = onTirarFoto, shape = RoundedCornerShape(14.dp)) {
+                Icon(Icons.Filled.PhotoCamera, contentDescription = null)
+                Spacer12Horizontal()
+                Text("Tirar foto")
+            }
+            OutlinedButton(onClick = onEscolherDaGaleria, shape = RoundedCornerShape(14.dp)) {
+                Icon(Icons.Filled.AddAPhoto, contentDescription = null)
+                Spacer12Horizontal()
+                Text("Galeria")
+            }
         }
     }
 }
