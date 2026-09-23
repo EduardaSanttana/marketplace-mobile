@@ -1,7 +1,7 @@
-package edu.ifsp.marketplace.data.sync
+package com.example.aluno_bruno.data.sync
 
-import edu.ifsp.marketplace.data.Produto
-import edu.ifsp.marketplace.data.ProdutoDao
+import com.example.aluno_bruno.data.Produto
+import com.example.aluno_bruno.data.ProdutoDao
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -61,6 +61,7 @@ class ProdutoSyncRepository(
             dao.hardDeleteById(produto.id)
         }
         for (produto in dao.getPendingSync()) {
+            // fotoPath é local ao dispositivo (sistema de arquivos), não é enviado à nuvem.
             val dados = mapOf(
                 "nome" to produto.nome,
                 "descricao" to produto.descricao,

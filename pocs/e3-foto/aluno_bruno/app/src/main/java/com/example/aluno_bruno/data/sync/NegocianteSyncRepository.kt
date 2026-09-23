@@ -1,7 +1,7 @@
-package edu.ifsp.marketplace.data.sync
+package com.example.aluno_bruno.data.sync
 
-import edu.ifsp.marketplace.data.Produto
-import edu.ifsp.marketplace.data.ProdutoDao
+import com.example.aluno_bruno.data.Negociante
+import com.example.aluno_bruno.data.NegocianteDao
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -10,12 +10,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-class ProdutoSyncRepository(
-    private val dao: ProdutoDao,
+class NegocianteSyncRepository(
+    private val dao: NegocianteDao,
     firestore: FirebaseFirestore,
     private val scope: CoroutineScope
 ) {
-    private val collection = firestore.collection("produtos")
+    private val collection = firestore.collection("negociantes")
     private var listener: ListenerRegistration? = null
 
     fun startListening() {
@@ -38,16 +38,11 @@ class ProdutoSyncRepository(
         val doc = change.document
         when (change.type) {
             DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
-                val remote = doc.toObject(Produto::class.java).copy(firestoreId = doc.id)
+                val remote = doc.toObject(Negociante::class.java).copy(firestoreId = doc.id)
                 val local = dao.getByFirestoreId(doc.id)
                 if (local == null || remote.updatedAt >= local.updatedAt) {
                     dao.upsertFromRemote(
-                        remote.copy(
-                            id = local?.id ?: 0,
-                            fotoPath = local?.fotoPath,
-                            pendingSync = false,
-                            pendingDelete = false
-                        )
+                        remote.copy(id = local?.id ?: 0, pendingSync = false, pendingDelete = false)
                     )
                 }
             }
@@ -56,26 +51,24 @@ class ProdutoSyncRepository(
     }
 
     suspend fun pushPendingChanges() {
-        for (produto in dao.getPendingDelete()) {
-            produto.firestoreId?.let { collection.document(it).delete().await() }
-            dao.hardDeleteById(produto.id)
+        for (negociante in dao.getPendingDelete()) {
+            negociante.firestoreId?.let { collection.document(it).delete().await() }
+            dao.hardDeleteById(negociante.id)
         }
-        for (produto in dao.getPendingSync()) {
+        for (negociante in dao.getPendingSync()) {
             val dados = mapOf(
-                "nome" to produto.nome,
-                "descricao" to produto.descricao,
-                "preco" to produto.preco,
-                "quantidade" to produto.quantidade,
-                "negocianteId" to produto.negocianteId,
-                "updatedAt" to produto.updatedAt
+                "nome" to negociante.nome,
+                "email" to negociante.email,
+                "telefone" to negociante.telefone,
+                "updatedAt" to negociante.updatedAt
             )
-            val firestoreId = produto.firestoreId
+            val firestoreId = negociante.firestoreId
             if (firestoreId == null) {
                 val ref = collection.add(dados).await()
-                dao.update(produto.copy(firestoreId = ref.id, pendingSync = false))
+                dao.update(negociante.copy(firestoreId = ref.id, pendingSync = false))
             } else {
                 collection.document(firestoreId).set(dados, SetOptions.merge()).await()
-                dao.update(produto.copy(pendingSync = false))
+                dao.update(negociante.copy(pendingSync = false))
             }
         }
     }
