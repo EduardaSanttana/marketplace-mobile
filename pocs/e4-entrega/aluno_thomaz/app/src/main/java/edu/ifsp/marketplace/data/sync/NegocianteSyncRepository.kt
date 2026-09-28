@@ -60,7 +60,10 @@ class NegocianteSyncRepository(
                 "nome" to negociante.nome,
                 "email" to negociante.email,
                 "telefone" to negociante.telefone,
-                "updatedAt" to negociante.updatedAt
+                "updatedAt" to negociante.updatedAt,
+                "endereco" to negociante.endereco,
+                "latitude" to negociante.latitude,
+                "longitude" to negociante.longitude,
             )
             val firestoreId = negociante.firestoreId
             if (firestoreId == null) {

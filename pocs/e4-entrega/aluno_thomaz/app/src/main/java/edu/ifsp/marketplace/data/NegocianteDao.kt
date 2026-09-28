@@ -42,4 +42,8 @@ interface NegocianteDao {
 
     @Query("UPDATE negociantes SET pendingDelete = 1, pendingSync = 1 WHERE id = :id")
     suspend fun markPendingDelete(id: Long)
+
+    @Query("UPDATE negociantes SET endereco = :endereco, latitude = :latitude, longitude = :longitude, updatedAt = :updatedAt, pendingSync = 1 WHERE id = :id")
+    suspend fun atualizarPontoEntrega(id: Long, endereco: String, latitude: Double, longitude: Double, updatedAt: Long)
+
 }

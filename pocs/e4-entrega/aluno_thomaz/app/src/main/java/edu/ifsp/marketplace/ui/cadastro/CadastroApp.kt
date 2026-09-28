@@ -101,7 +101,7 @@ fun CadastroApp(
             0 -> ProdutoScreen(viewModel, Modifier.padding(innerPadding))
             1 -> NegocianteScreen(viewModel, Modifier.padding(innerPadding))
             2 -> AvaliacaoScreen(viewModel, Modifier.padding(innerPadding))
-            3 -> MapaEntregaScreen(Modifier.padding(innerPadding))
+            3 -> MapaEntregaScreen(viewModel, Modifier.padding(innerPadding))
         }
     }
 
