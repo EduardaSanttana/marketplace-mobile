@@ -30,6 +30,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.ifsp.marketplace.ui.CadastroViewModel
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.outlined.LocationOn
+import edu.ifsp.marketplace.ui.mapa.MapaEntregaScreen
 
 private data class AbaInfo(
     val titulo: String,
@@ -40,7 +43,8 @@ private data class AbaInfo(
 private val abas = listOf(
     AbaInfo("Produtos", Icons.Filled.ShoppingBag, Icons.Outlined.ShoppingBag),
     AbaInfo("Negociantes", Icons.Filled.Storefront, Icons.Outlined.Storefront),
-    AbaInfo("Avaliações", Icons.Filled.RateReview, Icons.Outlined.RateReview)
+    AbaInfo("Avaliações", Icons.Filled.RateReview, Icons.Outlined.RateReview),
+    AbaInfo("Entrega", Icons.Filled.LocationOn, Icons.Outlined.LocationOn)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,6 +101,7 @@ fun CadastroApp(
             0 -> ProdutoScreen(viewModel, Modifier.padding(innerPadding))
             1 -> NegocianteScreen(viewModel, Modifier.padding(innerPadding))
             2 -> AvaliacaoScreen(viewModel, Modifier.padding(innerPadding))
+            3 -> MapaEntregaScreen(viewModel, Modifier.padding(innerPadding))
         }
     }
 

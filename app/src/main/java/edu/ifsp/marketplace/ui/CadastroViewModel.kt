@@ -91,4 +91,13 @@ class CadastroViewModel(application: Application) : AndroidViewModel(application
             syncManager.syncAgora()
         }
     }
+
+    fun definirPontoEntrega(negociante: Negociante, endereco: String, latitude: Double, longitude: Double) {
+        viewModelScope.launch {
+            db.negocianteDao().atualizarPontoEntrega(
+                negociante.id, endereco, latitude, longitude, System.currentTimeMillis()
+            )
+            syncManager.syncAgora()
+        }
+    }
 }
