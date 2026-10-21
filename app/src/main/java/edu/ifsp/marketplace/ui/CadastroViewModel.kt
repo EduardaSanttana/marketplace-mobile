@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import edu.ifsp.marketplace.data.AppDatabase
 import edu.ifsp.marketplace.data.Avaliacao
 import edu.ifsp.marketplace.data.Negociante
+import edu.ifsp.marketplace.data.Pedido
+import edu.ifsp.marketplace.data.StatusPedido
 import edu.ifsp.marketplace.data.Produto
 import edu.ifsp.marketplace.data.sync.SyncManager
 import edu.ifsp.marketplace.data.sync.observarConectividade
@@ -24,6 +26,9 @@ class CadastroViewModel(application: Application) : AndroidViewModel(application
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val negociantes: StateFlow<List<Negociante>> = db.negocianteDao().getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val pedidos: StateFlow<List<Pedido>> = db.pedidoDao().getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val avaliacoes: StateFlow<List<Avaliacao>> = db.avaliacaoDao().getAll()
@@ -88,6 +93,87 @@ class CadastroViewModel(application: Application) : AndroidViewModel(application
     fun excluirProduto(produto: Produto) {
         viewModelScope.launch {
             db.produtoDao().markPendingDelete(produto.id)
+            syncManager.syncAgora()
+        }
+    }
+
+    /**
+     * Registra a compra de um produto por um negociante.
+     *
+     * O destino do pedido é copiado do ponto de entrega já cadastrado pelo
+     * comprador. Se ele ainda não marcou o ponto no mapa, o pedido nasce sem
+     * coordenadas e o entregador não consegue gerar a rota — por isso a tela
+     * de compra avisa quando isso acontece.
+     */
+    fun comprarProduto(produto: Produto, comprador: Negociante, quantidade: Int) {
+        viewModelScope.launch {
+            db.pedidoDao().insert(
+                Pedido(
+                    produtoId = produto.id,
+                    produtoNome = produto.nome,
+                    compradorId = comprador.id,
+                    compradorNome = comprador.nome,
+                    quantidade = quantidade,
+                    valorTotal = produto.preco * quantidade,
+                    status = StatusPedido.AGUARDANDO.name,
+                    enderecoEntrega = comprador.endereco,
+                    latitudeEntrega = comprador.latitude,
+                    longitudeEntrega = comprador.longitude
+                )
+            )
+            // Baixa do estoque do vendedor
+            val restante = (produto.quantidade - quantidade).coerceAtLeast(0)
+            db.produtoDao().update(
+                produto.copy(
+                    quantidade = restante,
+                    updatedAt = System.currentTimeMillis(),
+                    pendingSync = true
+                )
+            )
+            syncManager.syncAgora()
+        }
+    }
+
+    /** O entregador retirou o pacote: o pedido passa a ser rastreável. */
+    fun iniciarTransporte(pedido: Pedido) {
+        viewModelScope.launch {
+            db.pedidoDao().atualizarStatus(
+                pedido.id, StatusPedido.EM_TRANSPORTE.name, System.currentTimeMillis()
+            )
+            syncManager.syncAgora()
+        }
+    }
+
+    /**
+     * Fecha a entrega com a comprovação exigida pelo manual: foto, coordenadas
+     * do local e endereço obtido por geocodificação reversa.
+     */
+    fun registrarEntrega(
+        pedido: Pedido,
+        fotoPath: String?,
+        latitude: Double?,
+        longitude: Double?,
+        endereco: String?
+    ) {
+        viewModelScope.launch {
+            val agora = System.currentTimeMillis()
+            db.pedidoDao().registrarEntrega(
+                id = pedido.id,
+                status = StatusPedido.ENTREGUE.name,
+                fotoPath = fotoPath,
+                latitude = latitude,
+                longitude = longitude,
+                endereco = endereco,
+                entregueEm = agora,
+                updatedAt = agora
+            )
+            syncManager.syncAgora()
+        }
+    }
+
+    fun excluirPedido(pedido: Pedido) {
+        viewModelScope.launch {
+            db.pedidoDao().markPendingDelete(pedido.id)
             syncManager.syncAgora()
         }
     }

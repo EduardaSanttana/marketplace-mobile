@@ -19,6 +19,7 @@ class SyncManager(
     private val produtoRepo = ProdutoSyncRepository(db.produtoDao(), firestore, scope)
     private val negocianteRepo = NegocianteSyncRepository(db.negocianteDao(), firestore, scope)
     private val avaliacaoRepo = AvaliacaoSyncRepository(db.avaliacaoDao(), firestore, scope)
+    private val pedidoRepo = PedidoSyncRepository(db.pedidoDao(), firestore, scope)
 
     private val mutex = Mutex()
 
@@ -29,12 +30,14 @@ class SyncManager(
         produtoRepo.startListening()
         negocianteRepo.startListening()
         avaliacaoRepo.startListening()
+        pedidoRepo.startListening()
     }
 
     fun stopRealtimeSync() {
         produtoRepo.stopListening()
         negocianteRepo.stopListening()
         avaliacaoRepo.stopListening()
+        pedidoRepo.stopListening()
     }
 
     suspend fun syncAgora() {
@@ -44,6 +47,7 @@ class SyncManager(
                 produtoRepo.pushPendingChanges()
                 negocianteRepo.pushPendingChanges()
                 avaliacaoRepo.pushPendingChanges()
+                pedidoRepo.pushPendingChanges()
                 _status.value = SyncStatus.OCIOSO
             } catch (e: Exception) {
                 _status.value = SyncStatus.ERRO

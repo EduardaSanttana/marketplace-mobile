@@ -13,7 +13,7 @@ import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import edu.ifsp.marketplace.ui.auth.LoginScreen
-import edu.ifsp.marketplace.ui.cadastro.CadastroApp
+import edu.ifsp.marketplace.ui.MarketplaceApp
 import edu.ifsp.marketplace.ui.theme.MarketplaceTheme
 
 class MainActivity : ComponentActivity() {
@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
                 var usuarioLogado by remember { mutableStateOf(auth.currentUser != null) }
 
                 if (usuarioLogado) {
-                    CadastroApp(
+                    MarketplaceApp(
                         usuarioEmail = auth.currentUser?.email,
                         onLogout = {
                             auth.signOut()
