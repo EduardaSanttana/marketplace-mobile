@@ -90,8 +90,8 @@ mostra o aviso.
 
 ## Como testar
 
-1. Perfil **Negociante** → aba **Entrega**: marcar o ponto de um negociante.
-2. Aba **Meus Produtos**: cadastrar um produto por outro negociante.
+1. Perfil **Negociante** → aba **Entrega**: marcar e salvar o ponto de um negociante.
+2. Aba **Produtos**: cadastrar um produto por outro negociante.
 3. Aba **Vitrine**: comprar o produto com o negociante que tem ponto definido.
 4. Trocar para o perfil **Entregador** (botão de setas na barra superior).
 5. Na entrega criada, tocar em **Rota**.

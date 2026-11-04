@@ -1,5 +1,6 @@
 package edu.ifsp.marketplace.util
 
+import android.util.Log
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,9 +21,7 @@ data class Rota(
     val duracaoSegundos: Double
 ) {
     /** Distancia formatada: "850 m" ou "12,4 km". */
-    fun distanciaFormatada(): String =
-        if (distanciaMetros < 1000) "${distanciaMetros.toInt()} m"
-        else "%.1f km".format(distanciaMetros / 1000)
+    fun distanciaFormatada(): String = formatarDistancia(distanciaMetros)
 
     /** Duracao formatada: "8 min" ou "1 h 20 min". */
     fun duracaoFormatada(): String {
@@ -64,6 +63,8 @@ object RotaService {
                     connectTimeout = 10000
                     readTimeout = 10000
                     requestMethod = "GET"
+                    // O servidor responde 403 ao User-Agent padrão do Android
+                    setRequestProperty("User-Agent", "Marketplace-DDM2/1.0 (projeto academico)")
                 }
 
                 val texto = conexao.inputStream.bufferedReader().use { it.readText() }
@@ -84,6 +85,7 @@ object RotaService {
                     duracaoSegundos = primeira.optDouble("duration", 0.0)
                 )
             } catch (e: Exception) {
+                Log.w("RotaService", "Falha ao calcular a rota de $origem até $destino", e)
                 null
             }
         }

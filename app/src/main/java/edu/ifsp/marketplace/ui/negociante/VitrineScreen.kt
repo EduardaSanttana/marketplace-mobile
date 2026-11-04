@@ -68,7 +68,7 @@ fun VitrineScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier) {
         ) {
             Text("Nenhum negociante cadastrado.", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Cadastre um negociante na aba Negociantes para poder comprar.",
+                "Cadastre um negociante no perfil Entregador, aba Negociantes, para poder comprar.",
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 6.dp)
             )
@@ -98,7 +98,7 @@ fun VitrineScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier) {
         if (comprador != null && comprador.latitude == null) {
             Text(
                 "Este negociante ainda não tem ponto de entrega no mapa. " +
-                    "Defina na aba Entrega, senão o entregador não consegue gerar a rota.",
+                    "Defina na aba Entrega para o entregador poder gerar a rota.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -113,7 +113,7 @@ fun VitrineScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier) {
             ) {
                 Text("Nenhum produto à venda.", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Cadastre produtos na aba Meus Produtos.",
+                    "Cadastre produtos na aba Produtos.",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(top = 6.dp)
                 )

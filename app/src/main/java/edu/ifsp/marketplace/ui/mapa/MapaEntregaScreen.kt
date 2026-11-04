@@ -11,19 +11,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,7 +37,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -51,10 +49,12 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
 import edu.ifsp.marketplace.ui.CadastroViewModel
+import edu.ifsp.marketplace.util.GeocodificacaoService
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -115,17 +115,55 @@ fun MapaEntregaScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
     var pontoNovo by remember(selecionadoId) { mutableStateOf<LatLng?>(null) }
     var enderecoNovo by remember(selecionadoId) { mutableStateOf<String?>(null) }
     val enderecoAtual = enderecoNovo ?: selecionado?.endereco.orEmpty()
+    // Endereço do CEP que o geocoder não achou no mapa: vale para o próximo toque
+    var enderecoSemPonto by remember { mutableStateOf<String?>(null) }
+    val buscandoEndereco by viewModel.buscandoEnderecoDoPonto.collectAsState()
+
+    // Ponto escolhido e ainda não salvo: olhar o mapa não pode mudar o endereço.
+    // Sem chave no remember: o onMapClick do GoogleMap fica com o lambda da primeira
+    // composição e só enxerga estes estados se eles forem sempre os mesmos objetos.
+    var rascunho by remember { mutableStateOf<LatLng?>(null) }
+    var enderecoRascunho by remember { mutableStateOf<String?>(null) }
+    var buscandoRascunho by remember { mutableStateOf(false) }
+    var consultaRascunho by remember { mutableStateOf<Job?>(null) }
 
     val cameraState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(LatLng(-23.5505, -46.6333), 11f)
     }
 
-    fun salvarPonto(pos: LatLng, textoEndereco: String = enderecoAtual) {
+    /** Sem [textoEndereco], consulta o endereço das coordenadas para mostrar antes de salvar. */
+    fun posicionarPino(pos: LatLng, textoEndereco: String? = enderecoSemPonto) {
+        if (selecionadoId == null) return
+        consultaRascunho?.cancel()
+        rascunho = pos
+        enderecoRascunho = textoEndereco
+        buscandoRascunho = textoEndereco == null
+        if (textoEndereco == null) {
+            consultaRascunho = scope.launch {
+                enderecoRascunho = GeocodificacaoService.buscar(context, pos.latitude, pos.longitude)
+                buscandoRascunho = false
+            }
+        }
+    }
+
+    fun descartarRascunho() {
+        consultaRascunho?.cancel()
+        rascunho = null
+        enderecoRascunho = null
+        buscandoRascunho = false
+    }
+
+    /** Sem endereço no rascunho, o ViewModel completa quando houver conexão. */
+    fun salvarPonto() {
         val n = selecionado ?: return
+        val pos = rascunho ?: return
+        val textoEndereco = enderecoRascunho
+        descartarRascunho()
         pontoNovo = pos
-        enderecoNovo = textoEndereco
+        enderecoNovo = textoEndereco.orEmpty()
+        enderecoSemPonto = null
         viewModel.definirPontoEntrega(n, textoEndereco, pos.latitude, pos.longitude)
-        Toast.makeText(context, "Ponto de entrega de ${n.nome} atualizado", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Ponto de entrega de ${n.nome} salvo", Toast.LENGTH_SHORT).show()
     }
 
     fun buscarPorCep() {
@@ -162,9 +200,10 @@ fun MapaEntregaScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
 
             if (pos != null) {
                 cameraState.animate(CameraUpdateFactory.newLatLngZoom(pos, 17f))
-                salvarPonto(pos, textoEndereco)
+                enderecoSemPonto = null
+                posicionarPino(pos, textoEndereco)
             } else {
-                enderecoNovo = textoEndereco
+                enderecoSemPonto = textoEndereco
                 Toast.makeText(
                     context,
                     "Não consegui localizar no mapa. Toque no mapa para marcar o ponto.",
@@ -186,7 +225,7 @@ fun MapaEntregaScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
     Column(modifier = modifier.fillMaxSize()) {
         if (negociantes.isEmpty()) {
             Text(
-                "Cadastre um negociante na aba Negociantes para definir o ponto de entrega.",
+                "Cadastre um negociante no perfil Entregador, aba Negociantes, para definir o ponto de entrega.",
                 modifier = Modifier.padding(16.dp)
             )
         } else {
@@ -197,7 +236,11 @@ fun MapaEntregaScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
                 items(negociantes, key = { it.id }) { n ->
                     FilterChip(
                         selected = n.id == selecionadoId,
-                        onClick = { selecionadoId = n.id },
+                        onClick = {
+                            selecionadoId = n.id
+                            descartarRascunho()
+                            enderecoSemPonto = null
+                        },
                         label = { Text(n.nome) }
                     )
                 }
@@ -205,19 +248,30 @@ fun MapaEntregaScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
 
             Text(
                 text = if (selecionado == null) "Escolha um negociante."
-                else "Informe o CEP e o número e toque na lupa, ou toque no mapa para mover o pino de ${selecionado.nome}.",
+                else "Endereço de entrega de ${selecionado.nome}: vale para as próximas compras e para os pedidos aguardando retirada.",
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
 
             if (selecionado != null) {
-                val novo = pontoNovo
+                val novo = rascunho ?: pontoNovo
                 val lat = novo?.latitude ?: selecionado.latitude
                 val lng = novo?.longitude ?: selecionado.longitude
+                // O endereço salvo pode chegar depois do ponto, vindo da geocodificação
+                val endereco = enderecoAtual.ifBlank { selecionado.endereco }
+                val textoRascunho = enderecoRascunho
 
                 Text(
-                    text = if (enderecoAtual.isNotBlank()) "Endereço: $enderecoAtual"
-                    else "Sem endereço definido.",
+                    text = when {
+                        rascunho != null && textoRascunho != null -> "Novo endereço, ainda não salvo: $textoRascunho"
+                        rascunho != null && buscandoRascunho -> "Buscando o endereço do novo ponto..."
+                        rascunho != null -> "Novo ponto, ainda não salvo: o endereço será preenchido quando houver conexão."
+                        enderecoSemPonto != null -> "Toque no mapa para marcar: ${enderecoSemPonto}"
+                        endereco.isNotBlank() -> "Endereço: $endereco"
+                        buscandoEndereco -> "Buscando o endereço do ponto..."
+                        lat != null -> "Endereço pendente: será preenchido quando houver conexão."
+                        else -> "Sem endereço definido."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
                 )
@@ -259,9 +313,9 @@ fun MapaEntregaScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
             GoogleMap(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraState,
-                onMapClick = { pos -> salvarPonto(pos) }
+                onMapClick = { pos -> posicionarPino(pos) }
             ) {
-                val novo = pontoNovo
+                val novo = rascunho ?: pontoNovo
                 negociantes.forEach { n ->
                     val eSelecionado = n.id == selecionadoId
                     val lat = n.latitude
@@ -280,7 +334,7 @@ fun MapaEntregaScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
                             Marker(
                                 state = markerState,
                                 title = n.nome,
-                                snippet = (if (eSelecionado) enderecoAtual else n.endereco)
+                                snippet = (if (eSelecionado) enderecoRascunho ?: enderecoAtual.ifBlank { n.endereco } else n.endereco)
                                     .ifBlank { "Ponto de entrega" },
                                 icon = BitmapDescriptorFactory.defaultMarker(
                                     if (eSelecionado) BitmapDescriptorFactory.HUE_AZURE
@@ -291,26 +345,24 @@ fun MapaEntregaScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
                     }
                 }
             }
-
-            // Cruz pequena que só indica o centro do mapa (usada pelo botão de baixo)
-            if (selecionado != null) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = "Centro do mapa",
-                    tint = Color(0xFF1565C0).copy(alpha = 0.7f),
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .size(28.dp)
-                )
-            }
         }
 
-        Button(
-            onClick = { salvarPonto(cameraState.position.target) },
-            enabled = selecionado != null,
-            modifier = Modifier.fillMaxWidth().padding(12.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Informe o endereço de entrega")
+            if (rascunho != null) {
+                OutlinedButton(onClick = { descartarRascunho() }) {
+                    Text("Cancelar")
+                }
+            }
+            Button(
+                onClick = { salvarPonto() },
+                enabled = rascunho != null && !buscandoRascunho,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Salvar ponto de entrega")
+            }
         }
     }
 }

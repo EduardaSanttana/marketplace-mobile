@@ -1,8 +1,6 @@
 package edu.ifsp.marketplace.ui.entregador
 
-import android.Manifest
 import android.annotation.SuppressLint
-import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -29,15 +28,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
-import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.Marker
@@ -45,64 +40,53 @@ import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
 import edu.ifsp.marketplace.data.Pedido
+import edu.ifsp.marketplace.data.StatusPedido
+import edu.ifsp.marketplace.ui.CadastroViewModel
+import edu.ifsp.marketplace.util.GeocodificacaoService
+import edu.ifsp.marketplace.util.LocalizacaoService
 import edu.ifsp.marketplace.util.Rota
 import edu.ifsp.marketplace.util.RotaService
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
 
 private val POSICAO_PADRAO = LatLng(-23.5505, -46.6333)
 
 /**
  * Tela de rota do entregador.
  *
- * Traça o caminho da posição atual do aparelho até o ponto de entrega do
- * pedido. Veio da PoC `pocs/e5-rotas/aluno_eduarda`: a chamada ao serviço de
- * rotas e a decodificação da polyline estão em [RotaService].
+ * Traça o caminho da posição atual do aparelho até o ponto de entrega que o
+ * comprador marcou no mapa. Veio da PoC `pocs/e5-rotas/aluno_eduarda`: a chamada
+ * ao serviço de rotas e a decodificação da polyline estão em [RotaService].
+ *
+ * O percurso termina aqui mesmo: a tela permite retirar o pacote e, ao chegar,
+ * registrar a entrega, cujo endereço vem de [GeocodificacaoService].
  */
 @SuppressLint("MissingPermission")
 @Composable
 fun RotaEntregaScreen(
     pedido: Pedido,
+    viewModel: CadastroViewModel,
     onVoltar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val escopo = rememberCoroutineScope()
+    val registro = rememberRegistroEntrega(viewModel, onRegistrada = onVoltar)
 
-    val destino = remember(pedido.id) {
+    val destino = remember(pedido.latitudeEntrega, pedido.longitudeEntrega) {
         val lat = pedido.latitudeEntrega
         val lng = pedido.longitudeEntrega
         if (lat != null && lng != null) LatLng(lat, lng) else null
     }
 
     var origem by remember { mutableStateOf<LatLng?>(null) }
+    var enderecoOrigem by remember { mutableStateOf<String?>(null) }
     var rota by remember { mutableStateOf<Rota?>(null) }
     var calculando by remember { mutableStateOf(false) }
     var mensagem by remember { mutableStateOf("Obtendo sua localização...") }
-    var temPermissao by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        )
-    }
+    var temPermissao by remember { mutableStateOf(LocalizacaoService.temPermissao(context)) }
 
     val cameraState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(destino ?: POSICAO_PADRAO, 13f)
-    }
-
-    suspend fun capturarOrigem(): LatLng? {
-        val cliente = LocationServices.getFusedLocationProviderClient(context)
-        return suspendCancellableCoroutine { continuacao ->
-            cliente.getCurrentLocation(
-                Priority.PRIORITY_HIGH_ACCURACY,
-                CancellationTokenSource().token
-            ).addOnSuccessListener { local ->
-                continuacao.resume(local?.let { LatLng(it.latitude, it.longitude) })
-            }.addOnFailureListener { continuacao.resume(null) }
-        }
     }
 
     fun gerarRota() {
@@ -115,7 +99,8 @@ fun RotaEntregaScreen(
             calculando = true
             mensagem = "Calculando a rota..."
 
-            val partida = origem ?: capturarOrigem()
+            // Recalcular parte de onde o entregador está agora, não de onde começou
+            val partida = LocalizacaoService.posicaoAtual(context) ?: origem
             if (partida == null) {
                 calculando = false
                 mensagem = "Não consegui obter sua localização. Verifique o GPS."
@@ -128,7 +113,7 @@ fun RotaEntregaScreen(
 
             if (resultado == null) {
                 rota = null
-                mensagem = "Não foi possível calcular a rota. Verifique a conexão."
+                mensagem = "Não foi possível calcular a rota. Verifique a conexão e a localização do aparelho."
                 return@launch
             }
 
@@ -143,8 +128,9 @@ fun RotaEntregaScreen(
     }
 
     val pedirPermissao = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { concedida ->
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissoes ->
+        val concedida = permissoes.values.any { it }
         temPermissao = concedida
         if (concedida) gerarRota()
         else mensagem = "Sem permissão de localização não dá para gerar a rota."
@@ -152,7 +138,15 @@ fun RotaEntregaScreen(
 
     LaunchedEffect(pedido.id) {
         if (temPermissao) gerarRota()
-        else pedirPermissao.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        else pedirPermissao.launch(LocalizacaoService.PERMISSOES)
+    }
+
+    // O endereço de partida é só informativo: não segura o cálculo da rota
+    LaunchedEffect(origem) {
+        val ponto = origem ?: return@LaunchedEffect
+        GeocodificacaoService.buscar(context, ponto.latitude, ponto.longitude)?.let {
+            enderecoOrigem = it
+        }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -165,8 +159,15 @@ fun RotaEntregaScreen(
                 text = "Para ${pedido.compradorNome}",
                 style = MaterialTheme.typography.bodySmall
             )
+            enderecoOrigem?.let { endereco ->
+                Text(
+                    text = "Saindo de: $endereco",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
             Text(
-                text = pedido.enderecoEntrega.ifBlank { "Endereço não informado" },
+                text = "Destino: ${pedido.enderecoEntrega.ifBlank { "endereço não informado" }}",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 4.dp)
             )
@@ -184,23 +185,28 @@ fun RotaEntregaScreen(
                 properties = MapProperties(isMyLocationEnabled = temPermissao)
             ) {
                 origem?.let { ponto ->
-                    Marker(
-                        state = rememberMarkerState(position = ponto),
-                        title = "Você está aqui",
-                        icon = BitmapDescriptorFactory.defaultMarker(
-                            BitmapDescriptorFactory.HUE_AZURE
+                    key(ponto) {
+                        Marker(
+                            state = rememberMarkerState(position = ponto),
+                            title = "Você está aqui",
+                            snippet = enderecoOrigem,
+                            icon = BitmapDescriptorFactory.defaultMarker(
+                                BitmapDescriptorFactory.HUE_AZURE
+                            )
                         )
-                    )
+                    }
                 }
                 destino?.let { ponto ->
-                    Marker(
-                        state = rememberMarkerState(position = ponto),
-                        title = "Ponto de entrega",
-                        snippet = pedido.enderecoEntrega.ifBlank { null },
-                        icon = BitmapDescriptorFactory.defaultMarker(
-                            BitmapDescriptorFactory.HUE_RED
+                    key(ponto) {
+                        Marker(
+                            state = rememberMarkerState(position = ponto),
+                            title = "Ponto de entrega",
+                            snippet = pedido.enderecoEntrega.ifBlank { null },
+                            icon = BitmapDescriptorFactory.defaultMarker(
+                                BitmapDescriptorFactory.HUE_RED
+                            )
                         )
-                    )
+                    }
                 }
                 rota?.let { tracado ->
                     Polyline(
@@ -232,6 +238,25 @@ fun RotaEntregaScreen(
             }
         }
 
+        when (pedido.situacao) {
+            StatusPedido.AGUARDANDO -> Button(
+                onClick = { viewModel.iniciarTransporte(pedido) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 8.dp)
+            ) {
+                Text("Retirar pacote")
+            }
+
+            StatusPedido.EM_TRANSPORTE -> Button(
+                onClick = { registro.iniciar(pedido) },
+                enabled = !registro.obtendoPosicao,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 8.dp)
+            ) {
+                Text(if (registro.obtendoPosicao) "Obtendo sua posição..." else "Cheguei: registrar entrega")
+            }
+
+            StatusPedido.ENTREGUE -> Unit
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -239,7 +264,7 @@ fun RotaEntregaScreen(
             OutlinedButton(onClick = onVoltar, modifier = Modifier.weight(1f)) {
                 Text("Voltar")
             }
-            Button(
+            OutlinedButton(
                 onClick = { gerarRota() },
                 enabled = !calculando && destino != null,
                 modifier = Modifier.weight(1f)

@@ -83,10 +83,10 @@ class PedidoSyncRepository(
             val firestoreId = pedido.firestoreId
             if (firestoreId == null) {
                 val ref = collection.add(dados).await()
-                dao.update(pedido.copy(firestoreId = ref.id, pendingSync = false))
+                dao.marcarSincronizado(pedido.id, ref.id, pedido.updatedAt)
             } else {
                 collection.document(firestoreId).set(dados, SetOptions.merge()).await()
-                dao.update(pedido.copy(pendingSync = false))
+                dao.marcarSincronizado(pedido.id, firestoreId, pedido.updatedAt)
             }
         }
     }

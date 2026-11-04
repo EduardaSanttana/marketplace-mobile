@@ -68,10 +68,10 @@ class NegocianteSyncRepository(
             val firestoreId = negociante.firestoreId
             if (firestoreId == null) {
                 val ref = collection.add(dados).await()
-                dao.update(negociante.copy(firestoreId = ref.id, pendingSync = false))
+                dao.marcarSincronizado(negociante.id, ref.id, negociante.updatedAt)
             } else {
                 collection.document(firestoreId).set(dados, SetOptions.merge()).await()
-                dao.update(negociante.copy(pendingSync = false))
+                dao.marcarSincronizado(negociante.id, firestoreId, negociante.updatedAt)
             }
         }
     }
