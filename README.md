@@ -23,9 +23,9 @@ O perfil ativo é trocado pelo botão de setas na barra superior.
 | Aba | O que faz |
 |---|---|
 | Vitrine | Compra produtos anunciados por outros negociantes |
-| Meus Produtos | Cadastra produtos à venda, com foto |
-| Pedidos | Acompanha o estágio de cada entrega (rastreamento) |
-| Entrega | Define o ponto de entrega no mapa, por CEP ou toque |
+| Produtos | Cadastra produtos à venda, com foto |
+| Pedidos | Acompanha o estágio de cada entrega (rastreamento) e vê o destino no mapa |
+| Entrega | Indica o endereço de entrega no mapa, por CEP ou toque, e salva |
 | Avaliações | Avalia produtos comprados |
 
 ### Entregador
@@ -36,7 +36,8 @@ O perfil ativo é trocado pelo botão de setas na barra superior.
 | Negociantes | Consulta os negociantes cadastrados |
 
 A partir de uma entrega, o botão **Rota** traça o caminho da posição atual
-até o ponto de entrega.
+até o ponto de entrega. A própria tela de rota permite retirar o pacote e
+registrar a entrega ao chegar.
 
 ---
 
@@ -51,6 +52,10 @@ Negociante compra          Entregador retira        Entregador registra
 
 O negociante acompanha esses três estágios na aba **Pedidos**.
 
+O ponto marcado no mapa é o destino da rota, e o endereço do local real da entrega
+é comparado com esse ponto. Detalhes em
+[docs/GEOCODIFICACAO_REVERSA.md](docs/GEOCODIFICACAO_REVERSA.md).
+
 ---
 
 ## Arquitetura
@@ -62,6 +67,7 @@ O negociante acompanha esses três estágios na aba **Pedidos**.
 - **Fotos** gravadas apenas no sistema de arquivos do dispositivo
 - **Google Maps** para exibição do mapa
 - **OSRM / OpenStreetMap** para cálculo de rotas
+- **Geocoder do Android / Photon (OpenStreetMap)** para obter endereços a partir de coordenadas
 
 Os dados são sempre gravados primeiro no SQLite e enviados ao Firestore quando
 houver conectividade, conforme exigido pelo manual do curso.
@@ -90,7 +96,8 @@ O arquivo `app/google-services.json` do Firebase também é necessário.
 │   ├── e2-cad/aluno_melissaa/      Cadastros + SQLite
 │   ├── e3-foto/aluno_bruno/        Fotos no sistema de arquivos
 │   ├── e4-entrega/aluno_thomaz/    Ponto de entrega no mapa
-│   └── e5-rotas/aluno_eduarda/     Geração de rotas
+│   ├── e5-rotas/aluno_eduarda/     Geração de rotas
+│   └── e6-geocoding/aluno_thomaz/  Endereços a partir de coordenadas
 ├── docs/                       Documentação técnica
 ├── .gitignore
 └── README.md

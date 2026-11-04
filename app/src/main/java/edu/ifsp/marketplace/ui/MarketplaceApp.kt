@@ -30,15 +30,16 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
-import edu.ifsp.marketplace.data.Pedido
 import edu.ifsp.marketplace.ui.cadastro.AvaliacaoScreen
 import edu.ifsp.marketplace.ui.cadastro.NegocianteScreen
 import edu.ifsp.marketplace.ui.cadastro.ProdutoScreen
@@ -68,7 +69,7 @@ private data class AbaInfo(
 
 private val abasNegociante = listOf(
     AbaInfo("Vitrine", Icons.Filled.Storefront, Icons.Outlined.Storefront),
-    AbaInfo("Meus Produtos", Icons.Filled.ShoppingBag, Icons.Outlined.ShoppingBag),
+    AbaInfo("Produtos", Icons.Filled.ShoppingBag, Icons.Outlined.ShoppingBag),
     AbaInfo("Pedidos", Icons.Filled.Receipt, Icons.Outlined.Receipt),
     AbaInfo("Entrega", Icons.Filled.LocationOn, Icons.Outlined.LocationOn),
     AbaInfo("Avaliações", Icons.Filled.RateReview, Icons.Outlined.RateReview)
@@ -97,12 +98,16 @@ fun MarketplaceApp(
 ) {
     val viewModel: CadastroViewModel = viewModel()
 
-    var perfil by remember { mutableStateOf(PerfilUsuario.NEGOCIANTE) }
-    var abaSelecionada by remember { mutableIntStateOf(0) }
+    // Sobrevivem à recriação da Activity, para a volta da câmera cair na mesma tela
+    var perfil by rememberSaveable { mutableStateOf(PerfilUsuario.NEGOCIANTE) }
+    var abaSelecionada by rememberSaveable { mutableIntStateOf(0) }
     var mostrarDialogoSaida by remember { mutableStateOf(false) }
 
-    // Quando um pedido está aberto para roteirização, a tela de rota ocupa a área inteira
-    var pedidoEmRota by remember { mutableStateOf<Pedido?>(null) }
+    // Quando um pedido está aberto para roteirização, a tela de rota ocupa a área inteira.
+    // Guarda só o id: a tela sempre recebe o pedido atual, com status e destino em dia.
+    var pedidoEmRotaId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val pedidos by viewModel.pedidos.collectAsState()
+    val emRota = pedidos.firstOrNull { it.id == pedidoEmRotaId }
 
     val abas = when (perfil) {
         PerfilUsuario.NEGOCIANTE -> abasNegociante
@@ -115,7 +120,7 @@ fun MarketplaceApp(
             PerfilUsuario.ENTREGADOR -> PerfilUsuario.NEGOCIANTE
         }
         abaSelecionada = 0
-        pedidoEmRota = null
+        pedidoEmRotaId = null
     }
 
     Scaffold(
@@ -147,7 +152,7 @@ fun MarketplaceApp(
         },
         bottomBar = {
             // A tela de rota é imersiva: esconde a navegação até o entregador voltar
-            if (pedidoEmRota == null) {
+            if (emRota == null) {
                 NavigationBar {
                     abas.forEachIndexed { index, aba ->
                         val selecionada = abaSelecionada == index
@@ -161,7 +166,7 @@ fun MarketplaceApp(
                                     contentDescription = aba.titulo
                                 )
                             },
-                            label = { Text(aba.titulo) }
+                            label = { Text(aba.titulo, maxLines = 1) }
                         )
                     }
                 }
@@ -169,12 +174,12 @@ fun MarketplaceApp(
         }
     ) { innerPadding ->
         val conteudo = Modifier.padding(innerPadding)
-        val emRota = pedidoEmRota
 
         if (emRota != null) {
             RotaEntregaScreen(
                 pedido = emRota,
-                onVoltar = { pedidoEmRota = null },
+                viewModel = viewModel,
+                onVoltar = { pedidoEmRotaId = null },
                 modifier = conteudo
             )
             return@Scaffold
@@ -192,7 +197,7 @@ fun MarketplaceApp(
             PerfilUsuario.ENTREGADOR -> when (abaSelecionada) {
                 0 -> EntregasScreen(
                     viewModel = viewModel,
-                    onAbrirRota = { pedido -> pedidoEmRota = pedido },
+                    onAbrirRota = { pedido -> pedidoEmRotaId = pedido.id },
                     modifier = conteudo
                 )
 

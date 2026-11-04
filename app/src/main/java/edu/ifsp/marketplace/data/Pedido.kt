@@ -2,6 +2,7 @@ package edu.ifsp.marketplace.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import edu.ifsp.marketplace.util.distanciaEmMetros
 
 /**
  * Situação de um pedido dentro do marketplace.
@@ -64,4 +65,14 @@ data class Pedido(
 
     /** O pedido só pode ser roteirizado se o negociante já marcou o destino. */
     val temDestino: Boolean get() = latitudeEntrega != null && longitudeEntrega != null
+
+    /** Distância entre onde a entrega foi registrada e o ponto marcado pelo comprador. */
+    val distanciaDoDestinoMetros: Double?
+        get() {
+            val latDestino = latitudeEntrega ?: return null
+            val lngDestino = longitudeEntrega ?: return null
+            val latEntregue = latitudeEntregue ?: return null
+            val lngEntregue = longitudeEntregue ?: return null
+            return distanciaEmMetros(latDestino, lngDestino, latEntregue, lngEntregue)
+        }
 }

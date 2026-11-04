@@ -46,4 +46,19 @@ interface NegocianteDao {
     @Query("UPDATE negociantes SET endereco = :endereco, latitude = :latitude, longitude = :longitude, updatedAt = :updatedAt, pendingSync = 1 WHERE id = :id")
     suspend fun atualizarPontoEntrega(id: Long, endereco: String, latitude: Double, longitude: Double, updatedAt: Long)
 
+    /** Pontos marcados sem conexão: já têm coordenadas, falta o endereço. */
+    @Query("SELECT * FROM negociantes WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND endereco = '' AND pendingDelete = 0")
+    suspend fun getPontosSemEndereco(): List<Negociante>
+
+    /**
+     * Grava o endereço de um ponto, a menos que o pino já tenha sido movido.
+     *
+     * @return quantas linhas mudaram: zero indica que o endereço ficou obsoleto
+     */
+    @Query("UPDATE negociantes SET endereco = :endereco, updatedAt = :updatedAt, pendingSync = 1 WHERE id = :id AND latitude = :latitude AND longitude = :longitude")
+    suspend fun preencherEnderecoDoPonto(id: Long, endereco: String, latitude: Double, longitude: Double, updatedAt: Long): Int
+
+    /** Só libera a pendência se o negociante não mudou enquanto era enviado à nuvem. */
+    @Query("UPDATE negociantes SET firestoreId = :firestoreId, pendingSync = CASE WHEN updatedAt = :updatedAt THEN 0 ELSE 1 END WHERE id = :id")
+    suspend fun marcarSincronizado(id: Long, firestoreId: String, updatedAt: Long)
 }

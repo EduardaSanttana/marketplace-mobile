@@ -11,8 +11,12 @@ import edu.ifsp.marketplace.data.StatusPedido
 import edu.ifsp.marketplace.data.Produto
 import edu.ifsp.marketplace.data.sync.SyncManager
 import edu.ifsp.marketplace.data.sync.observarConectividade
+import edu.ifsp.marketplace.util.GeocodificacaoService
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -34,11 +38,18 @@ class CadastroViewModel(application: Application) : AndroidViewModel(application
     val avaliacoes: StateFlow<List<Avaliacao>> = db.avaliacaoDao().getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** Verdadeiro enquanto o endereço do ponto marcado no mapa está sendo consultado. */
+    private val _buscandoEnderecoDoPonto = MutableStateFlow(false)
+    val buscandoEnderecoDoPonto: StateFlow<Boolean> = _buscandoEnderecoDoPonto.asStateFlow()
+
+    private var definicaoDePonto: Job? = null
+
     init {
         syncManager.startRealtimeSync()
 
         viewModelScope.launch {
             observarConectividade(application).filter { conectado -> conectado }.collect {
+                resolverEnderecosPendentes()
                 syncManager.syncAgora()
             }
         }
@@ -102,8 +113,8 @@ class CadastroViewModel(application: Application) : AndroidViewModel(application
      *
      * O destino do pedido é copiado do ponto de entrega já cadastrado pelo
      * comprador. Se ele ainda não marcou o ponto no mapa, o pedido nasce sem
-     * coordenadas e o entregador não consegue gerar a rota — por isso a tela
-     * de compra avisa quando isso acontece.
+     * coordenadas e a rota fica indisponível até o ponto ser definido, quando
+     * [definirPontoEntrega] atualiza os pedidos em aberto.
      */
     fun comprarProduto(produto: Produto, comprador: Negociante, quantidade: Int) {
         viewModelScope.launch {
@@ -147,26 +158,29 @@ class CadastroViewModel(application: Application) : AndroidViewModel(application
     /**
      * Fecha a entrega com a comprovação exigida pelo manual: foto, coordenadas
      * do local e endereço obtido por geocodificação reversa.
+     *
+     * A foto e as coordenadas são gravadas antes da consulta do endereço, para
+     * que a falta de conexão não impeça o registro: nesse caso o endereço é
+     * preenchido por [resolverEnderecosPendentes] quando a conexão voltar.
      */
-    fun registrarEntrega(
-        pedido: Pedido,
-        fotoPath: String?,
-        latitude: Double?,
-        longitude: Double?,
-        endereco: String?
-    ) {
+    fun registrarEntrega(pedidoId: Long, fotoPath: String, latitude: Double, longitude: Double) {
         viewModelScope.launch {
             val agora = System.currentTimeMillis()
             db.pedidoDao().registrarEntrega(
-                id = pedido.id,
+                id = pedidoId,
                 status = StatusPedido.ENTREGUE.name,
                 fotoPath = fotoPath,
                 latitude = latitude,
                 longitude = longitude,
-                endereco = endereco,
+                endereco = null,
                 entregueEm = agora,
                 updatedAt = agora
             )
+            GeocodificacaoService.buscar(getApplication(), latitude, longitude)?.let { endereco ->
+                db.pedidoDao().atualizarEnderecoEntregue(
+                    pedidoId, endereco, System.currentTimeMillis()
+                )
+            }
             syncManager.syncAgora()
         }
     }
@@ -178,12 +192,69 @@ class CadastroViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun definirPontoEntrega(negociante: Negociante, endereco: String, latitude: Double, longitude: Double) {
-        viewModelScope.launch {
+    /**
+     * Define o ponto de entrega do negociante e o leva para os pedidos em aberto.
+     *
+     * Sem [endereco] (toque no mapa), o ponto é gravado primeiro e o endereço vem
+     * da geocodificação reversa em seguida. Um novo ponto cancela a consulta do
+     * anterior, que já não interessa.
+     */
+    fun definirPontoEntrega(
+        negociante: Negociante,
+        endereco: String?,
+        latitude: Double,
+        longitude: Double
+    ) {
+        definicaoDePonto?.cancel()
+        definicaoDePonto = viewModelScope.launch {
+            _buscandoEnderecoDoPonto.value = endereco.isNullOrBlank()
+            val agora = System.currentTimeMillis()
             db.negocianteDao().atualizarPontoEntrega(
-                negociante.id, endereco, latitude, longitude, System.currentTimeMillis()
+                negociante.id, endereco.orEmpty(), latitude, longitude, agora
             )
+            db.pedidoDao().atualizarDestinoEmAberto(
+                negociante.id, negociante.nome, endereco.orEmpty(), latitude, longitude, agora
+            )
+            if (endereco.isNullOrBlank()) {
+                preencherEnderecoDoPonto(negociante, latitude, longitude)
+                _buscandoEnderecoDoPonto.value = false
+            }
             syncManager.syncAgora()
+        }
+    }
+
+    private suspend fun preencherEnderecoDoPonto(
+        negociante: Negociante,
+        latitude: Double,
+        longitude: Double
+    ) {
+        val endereco = GeocodificacaoService.buscar(getApplication(), latitude, longitude) ?: return
+        val agora = System.currentTimeMillis()
+        val atualizado = db.negocianteDao().preencherEnderecoDoPonto(
+            negociante.id, endereco, latitude, longitude, agora
+        )
+        if (atualizado > 0) {
+            db.pedidoDao().atualizarDestinoEmAberto(
+                negociante.id, negociante.nome, endereco, latitude, longitude, agora
+            )
+        }
+    }
+
+    /** Completa os endereços que ficaram para trás por falta de conexão. */
+    private suspend fun resolverEnderecosPendentes() {
+        for (negociante in db.negocianteDao().getPontosSemEndereco()) {
+            val latitude = negociante.latitude ?: continue
+            val longitude = negociante.longitude ?: continue
+            preencherEnderecoDoPonto(negociante, latitude, longitude)
+        }
+        for (pedido in db.pedidoDao().getEntreguesSemEndereco()) {
+            val latitude = pedido.latitudeEntregue ?: continue
+            val longitude = pedido.longitudeEntregue ?: continue
+            val endereco = GeocodificacaoService.buscar(getApplication(), latitude, longitude)
+                ?: continue
+            db.pedidoDao().atualizarEnderecoEntregue(
+                pedido.id, endereco, System.currentTimeMillis()
+            )
         }
     }
 }

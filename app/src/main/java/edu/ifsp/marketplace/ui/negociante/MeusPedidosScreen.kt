@@ -13,10 +13,14 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,17 +37,14 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import edu.ifsp.marketplace.data.StatusPedido
 import edu.ifsp.marketplace.ui.CadastroViewModel
+import edu.ifsp.marketplace.ui.ComprovanteEntrega
+import edu.ifsp.marketplace.ui.mapa.MapaPedidoDialog
 import java.io.File
 import java.text.NumberFormat
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 private fun moeda(valor: Double): String =
     NumberFormat.getCurrencyInstance(Locale("pt", "BR")).format(valor)
-
-private fun formatarData(instante: Long): String =
-    SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR")).format(Date(instante))
 
 /**
  * Linha do tempo do pedido: as três etapas, com a atual destacada.
@@ -92,6 +93,11 @@ fun MeusPedidosScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
 
     var compradorId by remember { mutableStateOf<Long?>(null) }
     val meusPedidos = pedidos.filter { compradorId == null || it.compradorId == compradorId }
+
+    var pedidoNoMapaId by remember { mutableStateOf<Long?>(null) }
+    pedidos.firstOrNull { it.id == pedidoNoMapaId }?.let { pedido ->
+        MapaPedidoDialog(pedido, onFechar = { pedidoNoMapaId = null })
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         if (negociantes.isNotEmpty()) {
@@ -176,19 +182,23 @@ fun MeusPedidosScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
                             modifier = Modifier.padding(top = 14.dp)
                         )
 
-                        // Comprovação enviada pelo entregador
-                        pedido.entregueEm?.let { instante ->
-                            Text(
-                                "Entregue em ${formatarData(instante)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(top = 6.dp)
-                            )
-                            pedido.enderecoEntregue?.let { endereco ->
-                                Text(
-                                    "Local: $endereco",
-                                    style = MaterialTheme.typography.bodySmall
+                        if (pedido.latitudeEntrega != null && pedido.longitudeEntrega != null) {
+                            OutlinedButton(
+                                onClick = { pedidoNoMapaId = pedido.id },
+                                modifier = Modifier.padding(top = 8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Map,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
                                 )
+                                Text("Ver no mapa", modifier = Modifier.padding(start = 8.dp))
                             }
+                        }
+
+                        // Comprovação enviada pelo entregador
+                        ComprovanteEntrega(pedido)
+                        if (pedido.entregueEm != null) {
                             pedido.fotoEntregaPath?.let { caminho ->
                                 AsyncImage(
                                     model = File(caminho),
