@@ -13,7 +13,8 @@ import kotlinx.coroutines.tasks.await
 class NegocianteSyncRepository(
     private val dao: NegocianteDao,
     firestore: FirebaseFirestore,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val religar: suspend () -> Unit
 ) {
     private val collection = firestore.collection("negociantes")
     private var listener: ListenerRegistration? = null
@@ -42,12 +43,20 @@ class NegocianteSyncRepository(
                 val local = dao.getByFirestoreId(doc.id)
                 if (local == null || remote.updatedAt >= local.updatedAt) {
                     dao.upsertFromRemote(
-                        remote.copy(id = local?.id ?: 0, pendingSync = false, pendingDelete = false)
+                        remote.copy(
+                            id = local?.id ?: 0,
+                            // Documento de antes do campo: não apaga o vínculo que já se conhece
+                            usuarioUid = remote.usuarioUid ?: local?.usuarioUid,
+                            pendingSync = false,
+                            pendingDelete = false
+                        )
                     )
                 }
             }
             DocumentChange.Type.REMOVED -> dao.hardDeleteByFirestoreId(doc.id)
         }
+        // Um negociante novo aqui pode ser o vendedor ou o comprador de algo que já chegou
+        religar()
     }
 
     suspend fun pushPendingChanges() {
@@ -56,7 +65,7 @@ class NegocianteSyncRepository(
             dao.hardDeleteById(negociante.id)
         }
         for (negociante in dao.getPendingSync()) {
-            val dados = mapOf(
+            val dados = mutableMapOf<String, Any?>(
                 "nome" to negociante.nome,
                 "email" to negociante.email,
                 "telefone" to negociante.telefone,
@@ -65,6 +74,9 @@ class NegocianteSyncRepository(
                 "latitude" to negociante.latitude,
                 "longitude" to negociante.longitude,
             )
+            // Nulo é "não sei": um aparelho que não viu o vínculo não pode desfazê-lo.
+            // Desfazer de propósito grava "", que segue como valor
+            negociante.usuarioUid?.let { dados["usuarioUid"] = it }
             val firestoreId = negociante.firestoreId
             if (firestoreId == null) {
                 val ref = collection.add(dados).await()

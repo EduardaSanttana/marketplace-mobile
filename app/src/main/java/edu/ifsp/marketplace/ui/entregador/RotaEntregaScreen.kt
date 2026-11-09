@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -46,6 +47,7 @@ import edu.ifsp.marketplace.util.GeocodificacaoService
 import edu.ifsp.marketplace.util.LocalizacaoService
 import edu.ifsp.marketplace.util.Rota
 import edu.ifsp.marketplace.util.RotaService
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 private val POSICAO_PADRAO = LatLng(-23.5505, -46.6333)
@@ -53,9 +55,10 @@ private val POSICAO_PADRAO = LatLng(-23.5505, -46.6333)
 /**
  * Tela de rota do entregador.
  *
- * Traça o caminho da posição atual do aparelho até o ponto de entrega que o
- * comprador marcou no mapa. Veio da PoC `pocs/e5-rotas/aluno_eduarda`: a chamada
- * ao serviço de rotas e a decodificação da polyline estão em [RotaService].
+ * O percurso tem duas etapas: da posição atual até o vendedor, para retirar o
+ * pacote, e depois até o ponto de entrega que o comprador marcou no mapa. Veio da
+ * PoC `pocs/e5-rotas/aluno_eduarda`: a chamada ao serviço de rotas e a decodificação
+ * da polyline estão em [RotaService].
  *
  * O percurso termina aqui mesmo: a tela permite retirar o pacote e, ao chegar,
  * registrar a entrega, cujo endereço vem de [GeocodificacaoService].
@@ -71,13 +74,17 @@ fun RotaEntregaScreen(
     val context = LocalContext.current
     val escopo = rememberCoroutineScope()
     val registro = rememberRegistroEntrega(viewModel, onRegistrada = onVoltar)
+    val negociantes by viewModel.negociantes.collectAsState()
 
-    val destino = remember(pedido.latitudeEntrega, pedido.longitudeEntrega) {
-        val lat = pedido.latitudeEntrega
-        val lng = pedido.longitudeEntrega
-        if (lat != null && lng != null) LatLng(lat, lng) else null
+    val indoRetirar = pedido.rotaAteRetirada
+    val latAlvo = if (indoRetirar) pedido.latitudeRetirada else pedido.latitudeEntrega
+    val lngAlvo = if (indoRetirar) pedido.longitudeRetirada else pedido.longitudeEntrega
+    val alvo = remember(latAlvo, lngAlvo) {
+        if (latAlvo != null && lngAlvo != null) LatLng(latAlvo, lngAlvo) else null
     }
+    val enderecoAlvo = if (indoRetirar) pedido.enderecoRetirada else pedido.enderecoEntrega
 
+    var calculo by remember { mutableStateOf<Job?>(null) }
     var origem by remember { mutableStateOf<LatLng?>(null) }
     var enderecoOrigem by remember { mutableStateOf<String?>(null) }
     var rota by remember { mutableStateOf<Rota?>(null) }
@@ -86,16 +93,24 @@ fun RotaEntregaScreen(
     var temPermissao by remember { mutableStateOf(LocalizacaoService.temPermissao(context)) }
 
     val cameraState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(destino ?: POSICAO_PADRAO, 13f)
+        position = CameraPosition.fromLatLngZoom(alvo ?: POSICAO_PADRAO, 13f)
     }
 
     fun gerarRota() {
-        val chegada = destino
+        // Retirar o pacote troca o alvo: um cálculo em andamento já não interessa
+        calculo?.cancel()
+        val chegada = alvo
         if (chegada == null) {
-            mensagem = "Este pedido ainda não tem ponto de entrega no mapa."
+            calculando = false
+            rota = null
+            mensagem = if (indoRetirar) {
+                "Este pedido não tem endereço de retirada. Ao retirar o pacote, a rota segue até o comprador."
+            } else {
+                "Este pedido ainda não tem ponto de entrega no mapa."
+            }
             return
         }
-        escopo.launch {
+        calculo = escopo.launch {
             calculando = true
             mensagem = "Calculando a rota..."
 
@@ -118,7 +133,8 @@ fun RotaEntregaScreen(
             }
 
             rota = resultado
-            mensagem = "${resultado.distanciaFormatada()} até o destino, cerca de ${resultado.duracaoFormatada()}."
+            val chegadaTexto = if (indoRetirar) "a retirada" else "o destino"
+            mensagem = "${resultado.distanciaFormatada()} até $chegadaTexto, cerca de ${resultado.duracaoFormatada()}."
 
             val limites = LatLngBounds.builder()
                 .apply { resultado.pontos.forEach { include(it) } }
@@ -136,7 +152,8 @@ fun RotaEntregaScreen(
         else mensagem = "Sem permissão de localização não dá para gerar a rota."
     }
 
-    LaunchedEffect(pedido.id) {
+    // A troca de etapa recalcula sozinha, partindo de onde o pacote foi retirado
+    LaunchedEffect(pedido.id, indoRetirar) {
         if (temPermissao) gerarRota()
         else pedirPermissao.launch(LocalizacaoService.PERMISSOES)
     }
@@ -152,11 +169,15 @@ fun RotaEntregaScreen(
     Column(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
             Text(
-                text = "Entrega de ${pedido.produtoNome}",
+                text = "${if (indoRetirar) "Retirada" else "Entrega"} de ${pedido.produtoNome}",
                 style = MaterialTheme.typography.titleMedium
             )
             Text(
-                text = "Para ${pedido.compradorNome}",
+                text = if (indoRetirar && pedido.vendedorNome.isNotBlank()) {
+                    "Com ${pedido.vendedorNome}, para ${pedido.compradorNome}"
+                } else {
+                    "Para ${pedido.compradorNome}"
+                },
                 style = MaterialTheme.typography.bodySmall
             )
             enderecoOrigem?.let { endereco ->
@@ -166,8 +187,15 @@ fun RotaEntregaScreen(
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
+            if (indoRetirar && pedido.temRetirada) {
+                Text(
+                    text = "Retirar em: ${pedido.enderecoRetirada.ifBlank { "endereço pendente, ponto marcado no mapa" }}",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
             Text(
-                text = "Destino: ${pedido.enderecoEntrega.ifBlank { "endereço não informado" }}",
+                text = "${if (indoRetirar) "Depois, entregar em" else "Destino"}: ${pedido.enderecoEntrega.ifBlank { "endereço não informado" }}",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 4.dp)
             )
@@ -176,6 +204,16 @@ fun RotaEntregaScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 8.dp)
             )
+            // Quem atende no ponto para onde a rota leva agora
+            if (pedido.situacao != StatusPedido.ENTREGUE) {
+                BotaoLigar(
+                    papel = if (indoRetirar) "vendedor" else "comprador",
+                    negociante = negociantes.firstOrNull {
+                        it.id == if (indoRetirar) pedido.vendedorId else pedido.compradorId
+                    },
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
         }
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -196,14 +234,15 @@ fun RotaEntregaScreen(
                         )
                     }
                 }
-                destino?.let { ponto ->
-                    key(ponto) {
+                alvo?.let { ponto ->
+                    key(ponto, indoRetirar) {
                         Marker(
                             state = rememberMarkerState(position = ponto),
-                            title = "Ponto de entrega",
-                            snippet = pedido.enderecoEntrega.ifBlank { null },
+                            title = if (indoRetirar) "Retirada do pacote" else "Ponto de entrega",
+                            snippet = enderecoAlvo.ifBlank { null },
                             icon = BitmapDescriptorFactory.defaultMarker(
-                                BitmapDescriptorFactory.HUE_RED
+                                if (indoRetirar) BitmapDescriptorFactory.HUE_GREEN
+                                else BitmapDescriptorFactory.HUE_RED
                             )
                         )
                     }
@@ -266,7 +305,7 @@ fun RotaEntregaScreen(
             }
             OutlinedButton(
                 onClick = { gerarRota() },
-                enabled = !calculando && destino != null,
+                enabled = !calculando && alvo != null,
                 modifier = Modifier.weight(1f)
             ) {
                 Text(if (rota == null) "Gerar rota" else "Recalcular")

@@ -6,20 +6,16 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -48,6 +44,7 @@ import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
+import edu.ifsp.marketplace.data.Negociante
 import edu.ifsp.marketplace.ui.CadastroViewModel
 import edu.ifsp.marketplace.util.GeocodificacaoService
 import java.net.HttpURLConnection
@@ -99,22 +96,27 @@ private suspend fun localizar(context: Context, consulta: String): LatLng? = wit
     }
 }
 
+/**
+ * Endereço do negociante ligado à conta: onde ele recebe as compras e de onde o
+ * entregador retira as vendas. Cada conta marca só o próprio endereço.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapaEntregaScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier) {
+fun MapaEntregaScreen(viewModel: CadastroViewModel, eu: Negociante, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val negociantes by viewModel.negociantes.collectAsState()
 
-    var selecionadoId by remember { mutableStateOf<Long?>(null) }
-    val selecionado = negociantes.firstOrNull { it.id == selecionadoId }
+    // Fixo: a tela é recriada se a conta passar a ser outro negociante
+    val selecionadoId: Long? = eu.id
+    val selecionado = negociantes.firstOrNull { it.id == selecionadoId } ?: eu
 
     var cep by remember(selecionadoId) { mutableStateOf("") }
     var numero by remember(selecionadoId) { mutableStateOf("") }
     // Valores recém-definidos: o pino e o texto mudam na hora, sem esperar o banco
     var pontoNovo by remember(selecionadoId) { mutableStateOf<LatLng?>(null) }
     var enderecoNovo by remember(selecionadoId) { mutableStateOf<String?>(null) }
-    val enderecoAtual = enderecoNovo ?: selecionado?.endereco.orEmpty()
+    val enderecoAtual = enderecoNovo ?: selecionado.endereco
     // Endereço do CEP que o geocoder não achou no mapa: vale para o próximo toque
     var enderecoSemPonto by remember { mutableStateOf<String?>(null) }
     val buscandoEndereco by viewModel.buscandoEnderecoDoPonto.collectAsState()
@@ -155,7 +157,7 @@ fun MapaEntregaScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
 
     /** Sem endereço no rascunho, o ViewModel completa quando houver conexão. */
     fun salvarPonto() {
-        val n = selecionado ?: return
+        val n = selecionado
         val pos = rascunho ?: return
         val textoEndereco = enderecoRascunho
         descartarRascunho()
@@ -163,7 +165,7 @@ fun MapaEntregaScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
         enderecoNovo = textoEndereco.orEmpty()
         enderecoSemPonto = null
         viewModel.definirPontoEntrega(n, textoEndereco, pos.latitude, pos.longitude)
-        Toast.makeText(context, "Ponto de entrega de ${n.nome} salvo", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Seu endereço foi salvo", Toast.LENGTH_SHORT).show()
     }
 
     fun buscarPorCep() {
@@ -213,99 +215,72 @@ fun MapaEntregaScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
         }
     }
 
-    // Ao escolher um negociante que já tem ponto, leva o mapa até ele
+    // Se o negociante já tem ponto, o mapa abre nele
     LaunchedEffect(selecionadoId) {
-        val lat = selecionado?.latitude
-        val lng = selecionado?.longitude
+        val lat = selecionado.latitude
+        val lng = selecionado.longitude
         if (lat != null && lng != null) {
             cameraState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 15f))
         }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        if (negociantes.isEmpty()) {
-            Text(
-                "Cadastre um negociante no perfil Entregador, aba Negociantes, para definir o ponto de entrega.",
-                modifier = Modifier.padding(16.dp)
+        Text(
+            text = "Seu endereço: recebe as compras e é onde o entregador retira as vendas. Vale para os próximos pedidos e para os que aguardam retirada.",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)
+        )
+
+        val novo = rascunho ?: pontoNovo
+        val lat = novo?.latitude ?: selecionado.latitude
+        val lng = novo?.longitude ?: selecionado.longitude
+        // O endereço salvo pode chegar depois do ponto, vindo da geocodificação
+        val endereco = enderecoAtual.ifBlank { selecionado.endereco }
+        val textoRascunho = enderecoRascunho
+
+        Text(
+            text = when {
+                rascunho != null && textoRascunho != null -> "Novo endereço, ainda não salvo: $textoRascunho"
+                rascunho != null && buscandoRascunho -> "Buscando o endereço do novo ponto..."
+                rascunho != null -> "Novo ponto, ainda não salvo: o endereço será preenchido quando houver conexão."
+                enderecoSemPonto != null -> "Toque no mapa para marcar: ${enderecoSemPonto}"
+                endereco.isNotBlank() -> "Endereço: $endereco"
+                buscandoEndereco -> "Buscando o endereço do ponto..."
+                lat != null -> "Endereço pendente: será preenchido quando houver conexão."
+                else -> "Sem endereço definido."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+        )
+        Text(
+            text = if (lat != null && lng != null) "Coordenadas: %.5f, %.5f".format(lat, lng)
+            else "Você ainda não tem ponto de entrega. Toque no mapa ou busque pelo CEP.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp, 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = cep,
+                onValueChange = { cep = it.filter(Char::isDigit).take(8) },
+                label = { Text("CEP") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f)
             )
-        } else {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(negociantes, key = { it.id }) { n ->
-                    FilterChip(
-                        selected = n.id == selecionadoId,
-                        onClick = {
-                            selecionadoId = n.id
-                            descartarRascunho()
-                            enderecoSemPonto = null
-                        },
-                        label = { Text(n.nome) }
-                    )
-                }
-            }
-
-            Text(
-                text = if (selecionado == null) "Escolha um negociante."
-                else "Endereço de entrega de ${selecionado.nome}: vale para as próximas compras e para os pedidos aguardando retirada.",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(horizontal = 16.dp)
+            OutlinedTextField(
+                value = numero,
+                onValueChange = { numero = it.take(8) },
+                label = { Text("Nº") },
+                singleLine = true,
+                modifier = Modifier.width(90.dp)
             )
-
-            if (selecionado != null) {
-                val novo = rascunho ?: pontoNovo
-                val lat = novo?.latitude ?: selecionado.latitude
-                val lng = novo?.longitude ?: selecionado.longitude
-                // O endereço salvo pode chegar depois do ponto, vindo da geocodificação
-                val endereco = enderecoAtual.ifBlank { selecionado.endereco }
-                val textoRascunho = enderecoRascunho
-
-                Text(
-                    text = when {
-                        rascunho != null && textoRascunho != null -> "Novo endereço, ainda não salvo: $textoRascunho"
-                        rascunho != null && buscandoRascunho -> "Buscando o endereço do novo ponto..."
-                        rascunho != null -> "Novo ponto, ainda não salvo: o endereço será preenchido quando houver conexão."
-                        enderecoSemPonto != null -> "Toque no mapa para marcar: ${enderecoSemPonto}"
-                        endereco.isNotBlank() -> "Endereço: $endereco"
-                        buscandoEndereco -> "Buscando o endereço do ponto..."
-                        lat != null -> "Endereço pendente: será preenchido quando houver conexão."
-                        else -> "Sem endereço definido."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-                )
-                Text(
-                    text = if (lat != null && lng != null) "Coordenadas: %.5f, %.5f".format(lat, lng)
-                    else "Este negociante ainda não tem ponto de entrega.",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp, 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = cep,
-                        onValueChange = { cep = it.filter(Char::isDigit).take(8) },
-                        label = { Text("CEP") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = numero,
-                        onValueChange = { numero = it.take(8) },
-                        label = { Text("Nº") },
-                        singleLine = true,
-                        modifier = Modifier.width(90.dp)
-                    )
-                    Button(onClick = { buscarPorCep() }, enabled = cep.length == 8) {
-                        Icon(Icons.Filled.Search, contentDescription = "Buscar CEP")
-                    }
-                }
+            Button(onClick = { buscarPorCep() }, enabled = cep.length == 8) {
+                Icon(Icons.Filled.Search, contentDescription = "Buscar CEP")
             }
         }
 
@@ -316,7 +291,8 @@ fun MapaEntregaScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifie
                 onMapClick = { pos -> posicionarPino(pos) }
             ) {
                 val novo = rascunho ?: pontoNovo
-                negociantes.forEach { n ->
+                // Só o próprio ponto: o endereço dos outros negociantes não é da conta
+                listOf(selecionado).forEach { n ->
                     val eSelecionado = n.id == selecionadoId
                     val lat = n.latitude
                     val lng = n.longitude

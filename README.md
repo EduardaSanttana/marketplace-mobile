@@ -18,26 +18,37 @@ são guiados no processo de entrega.
 
 O perfil ativo é trocado pelo botão de setas na barra superior.
 
+### Conta e negociante
+
+Cada conta do Firebase Auth age como **um** negociante. No primeiro acesso como
+negociante, a tela **Quem é você?** oferece criar o próprio cadastro (**Ainda não
+tenho cadastro**) ou escolher um já existente; quem só entrega toca em **Sou só
+entregador**. O entregador não cadastra negociantes: cada um se cadastra. O vínculo
+fica no cadastro do negociante e segue para a nuvem, então vale em qualquer
+aparelho. Negociantes já ligados a outra conta aparecem bloqueados. Na Vitrine,
+**Meus dados** corrige nome, e-mail e telefone, e **Não sou eu** desfaz o vínculo.
+
 ### Negociante
 
 | Aba | O que faz |
 |---|---|
-| Vitrine | Compra produtos anunciados por outros negociantes |
-| Produtos | Cadastra produtos à venda, com foto |
-| Pedidos | Acompanha o estágio de cada entrega (rastreamento) e vê o destino no mapa |
-| Entrega | Indica o endereço de entrega no mapa, por CEP ou toque, e salva |
+| Vitrine | Busca por produto ou vendedor e compra, em uma ou mais unidades, produtos de outros negociantes, com a nota média das avaliações |
+| Produtos | Cadastra, edita e exclui os próprios produtos, com foto |
+| Pedidos | Acompanha compras e vendas (rastreamento) numa linha do tempo com a hora da compra, da retirada e da entrega, vê o destino no mapa, cancela pedidos que aguardam retirada e apaga os entregues |
+| Entrega | Indica no mapa, por CEP ou toque, o endereço onde recebe as compras e de onde saem as vendas |
 | Avaliações | Avalia produtos comprados |
 
 ### Entregador
 
 | Aba | O que faz |
 |---|---|
-| Entregas | Lista os pedidos, retira o pacote e registra a entrega com foto, coordenadas e endereço |
-| Negociantes | Consulta os negociantes cadastrados |
+| Entregas | Lista os pedidos em aberto ou entregues, retira o pacote, liga para o vendedor ou o comprador e registra a entrega com foto, coordenadas e endereço |
 
-A partir de uma entrega, o botão **Rota** traça o caminho da posição atual
-até o ponto de entrega. A própria tela de rota permite retirar o pacote e
-registrar a entrega ao chegar.
+A partir de uma entrega, o botão **Rota** traça o caminho da posição atual até
+o vendedor, para retirar o pacote. Ao tocar em **Retirar pacote**, a rota é
+recalculada até o ponto de entrega do comprador, e a mesma tela registra a
+entrega ao chegar. A mais de 300 m do ponto marcado, o app pergunta antes de
+registrar.
 
 ---
 
@@ -70,7 +81,19 @@ O ponto marcado no mapa é o destino da rota, e o endereço do local real da ent
 - **Geocoder do Android / Photon (OpenStreetMap)** para obter endereços a partir de coordenadas
 
 Os dados são sempre gravados primeiro no SQLite e enviados ao Firestore quando
-houver conectividade, conforme exigido pelo manual do curso.
+houver conectividade, conforme exigido pelo manual do curso. Uma faixa sob a
+barra superior mostra isso acontecendo: sem conexão, conta quantas alterações
+estão salvas no aparelho esperando envio; quando tudo chega à nuvem, some.
+
+Cada referência entre registros (produto → vendedor, pedido → produto, comprador
+e vendedor, avaliação → produto) guarda o **id do documento no Firestore**, que é o
+mesmo em todos os aparelhos. O id do SQLite muda de aparelho para aparelho e é
+só a tradução local, recalculada sempre que um dado chega da nuvem
+(`data/sync/Vinculos.kt`). Registros de antes dessa mudança são religados pelo
+nome copiado no pedido, quando ele é único.
+
+As fotos ficam só no aparelho que as tirou; nos outros, o pedido mostra
+"Foto registrada no aparelho do entregador".
 
 ---
 

@@ -42,4 +42,17 @@ interface AvaliacaoDao {
 
     @Query("UPDATE avaliacoes SET pendingDelete = 1, pendingSync = 1 WHERE id = :id")
     suspend fun markPendingDelete(id: Long)
+
+    /** Aponta cada avaliação para o id local do produto indicado pelo id do Firestore. */
+    @Query(
+        """
+        UPDATE avaliacoes SET produtoId =
+            (SELECT p.id FROM produtos p WHERE p.firestoreId = avaliacoes.produtoFirestoreId)
+        WHERE produtoFirestoreId IS NOT NULL
+            AND produtoId IS NOT
+                (SELECT p.id FROM produtos p WHERE p.firestoreId = avaliacoes.produtoFirestoreId)
+            AND EXISTS (SELECT 1 FROM produtos p WHERE p.firestoreId = avaliacoes.produtoFirestoreId)
+        """
+    )
+    suspend fun religarProdutos()
 }

@@ -42,4 +42,24 @@ interface ProdutoDao {
 
     @Query("UPDATE produtos SET pendingDelete = 1, pendingSync = 1 WHERE id = :id")
     suspend fun markPendingDelete(id: Long)
+
+    @Query("SELECT * FROM produtos WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): Produto?
+
+    /** Devolve ao estoque as unidades de um pedido cancelado. */
+    @Query("UPDATE produtos SET quantidade = quantidade + :quantidade, updatedAt = :updatedAt, pendingSync = 1 WHERE id = :id")
+    suspend fun devolverEstoque(id: Long, quantidade: Int, updatedAt: Long)
+
+    /** Aponta cada produto para o id local do vendedor indicado pelo id do Firestore. */
+    @Query(
+        """
+        UPDATE produtos SET negocianteId =
+            (SELECT n.id FROM negociantes n WHERE n.firestoreId = produtos.negocianteFirestoreId)
+        WHERE negocianteFirestoreId IS NOT NULL
+            AND negocianteId IS NOT
+                (SELECT n.id FROM negociantes n WHERE n.firestoreId = produtos.negocianteFirestoreId)
+            AND EXISTS (SELECT 1 FROM negociantes n WHERE n.firestoreId = produtos.negocianteFirestoreId)
+        """
+    )
+    suspend fun religarVendedores()
 }

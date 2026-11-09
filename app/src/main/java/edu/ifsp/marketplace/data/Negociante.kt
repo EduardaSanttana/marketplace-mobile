@@ -13,8 +13,13 @@ data class Negociante(
     val endereco: String = "",
     val latitude: Double? = null,
     val longitude: Double? = null,
+    // Conta do Firebase Auth que age como este negociante. Vazio ("") desfaz o
+    // vínculo; null só significa que este aparelho ainda não sabe de nenhum
+    val usuarioUid: String? = null,
     val firestoreId: String? = null,
     val updatedAt: Long = System.currentTimeMillis(),
     val pendingSync: Boolean = true,
     val pendingDelete: Boolean = false
-)
+) {
+    val temConta: Boolean get() = !usuarioUid.isNullOrBlank()
+}
