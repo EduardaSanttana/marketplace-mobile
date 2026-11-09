@@ -14,13 +14,21 @@ fun observarConectividade(context: Context): Flow<Boolean> = callbackFlow {
     val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
+    // Wi-Fi e dados móveis são redes separadas: a queda de uma não quer dizer que
+    // o aparelho ficou sem conexão. Conectado é ter ao menos uma rede disponível
+    val disponiveis = mutableSetOf<Network>()
     val callback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
+            synchronized(disponiveis) { disponiveis.add(network) }
             trySend(true)
         }
 
         override fun onLost(network: Network) {
-            trySend(false)
+            val restantes = synchronized(disponiveis) {
+                disponiveis.remove(network)
+                disponiveis.size
+            }
+            trySend(restantes > 0)
         }
     }
 

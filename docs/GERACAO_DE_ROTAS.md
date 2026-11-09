@@ -81,20 +81,36 @@ tela informa que não é possível gerar o percurso.
 
 ## Pré-condição
 
-A rota só é gerada se o pedido tiver `latitudeEntrega` e `longitudeEntrega`
-preenchidas — ou seja, se o negociante já marcou o ponto de entrega na aba
-**Entrega**. Sem isso, o botão **Rota** fica desabilitado e o cartão da entrega
-mostra o aviso.
+O percurso tem duas etapas, e cada uma precisa do seu ponto:
+
+| Situação do pedido | A rota vai até | Campos usados |
+|---|---|---|
+| Aguardando retirada | O vendedor | `latitudeRetirada`, `longitudeRetirada` |
+| Em transporte | O comprador | `latitudeEntrega`, `longitudeEntrega` |
+
+Os dois pontos vêm do endereço que cada negociante marca na aba **Entrega**. Um
+pedido aguardando retirada sem endereço do vendedor pode ser retirado mesmo assim;
+a tela avisa e a rota começa na segunda etapa. O botão **Rota** só fica desabilitado
+quando não há ponto para nenhuma das etapas disponíveis.
+
+Pedidos criados antes desta mudança não têm local de retirada, até o vendedor salvar
+o endereço de novo.
 
 ---
 
 ## Como testar
 
-1. Perfil **Negociante** → aba **Entrega**: marcar e salvar o ponto de um negociante.
-2. Aba **Produtos**: cadastrar um produto por outro negociante.
-3. Aba **Vitrine**: comprar o produto com o negociante que tem ponto definido.
+Cada conta age como um negociante só, então o teste usa duas contas (ou, com
+uma só, **Não sou eu** na Vitrine para trocar de negociante entre os passos).
+
+1. Conta do vendedor, perfil **Negociante**: aba **Entrega**, marcar e salvar o ponto;
+   aba **Produtos**, cadastrar um produto.
+2. Conta do comprador: aba **Entrega**, marcar e salvar o ponto.
+3. Aba **Vitrine**: comprar o produto.
 4. Trocar para o perfil **Entregador** (botão de setas na barra superior).
-5. Na entrega criada, tocar em **Rota**.
+5. Na entrega criada, tocar em **Rota**: o traçado vai até o vendedor, e **Ligar para
+   vendedor** abre o discador com o telefone dele.
+6. Tocar em **Retirar pacote**: o traçado é recalculado até o comprador.
 
 No emulador, definir a localização em *Extended Controls → Location* antes do
 passo 5 — sem isso o GPS não devolve posição e a rota não é calculada.

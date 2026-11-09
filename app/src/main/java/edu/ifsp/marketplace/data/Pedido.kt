@@ -40,6 +40,13 @@ data class Pedido(
     val produtoNome: String = "",
     val compradorId: Long = 0,
     val compradorNome: String = "",
+
+    // Os ids locais só valem neste aparelho; os do Firestore valem em todos
+    // e corrigem os locais quando o pedido chega de outro aparelho
+    val produtoFirestoreId: String? = null,
+    val compradorFirestoreId: String? = null,
+    val vendedorFirestoreId: String? = null,
+
     val quantidade: Int = 1,
     val valorTotal: Double = 0.0,
     val status: String = StatusPedido.AGUARDANDO.name,
@@ -48,6 +55,17 @@ data class Pedido(
     val enderecoEntrega: String = "",
     val latitudeEntrega: Double? = null,
     val longitudeEntrega: Double? = null,
+
+    // Onde o entregador retira o pacote: o endereço do vendedor
+    val vendedorId: Long = 0,
+    val vendedorNome: String = "",
+    val enderecoRetirada: String = "",
+    val latitudeRetirada: Double? = null,
+    val longitudeRetirada: Double? = null,
+
+    // Horários da linha do tempo; pedidos de antes deste campo ficam sem eles
+    val criadoEm: Long? = null,
+    val retiradoEm: Long? = null,
 
     // Comprovação registrada pelo entregador
     val fotoEntregaPath: String? = null,
@@ -63,16 +81,45 @@ data class Pedido(
 ) {
     val situacao: StatusPedido get() = StatusPedido.de(status)
 
+    /** Quando o pedido chegou a cada etapa, se este aparelho souber. */
+    fun horarioDa(etapa: StatusPedido): Long? = when (etapa) {
+        StatusPedido.AGUARDANDO -> criadoEm
+        StatusPedido.EM_TRANSPORTE -> retiradoEm
+        StatusPedido.ENTREGUE -> entregueEm
+    }
+
     /** O pedido só pode ser roteirizado se o negociante já marcou o destino. */
     val temDestino: Boolean get() = latitudeEntrega != null && longitudeEntrega != null
+
+    val temRetirada: Boolean get() = latitudeRetirada != null && longitudeRetirada != null
+
+    /** Antes da retirada, a rota leva ao vendedor; depois, ao comprador. */
+    val rotaAteRetirada: Boolean get() = situacao == StatusPedido.AGUARDANDO
+
+    /** Há um ponto para roteirizar agora, ou um que a retirada vai liberar. */
+    val podeAbrirRota: Boolean get() = temDestino || (rotaAteRetirada && temRetirada)
 
     /** Distância entre onde a entrega foi registrada e o ponto marcado pelo comprador. */
     val distanciaDoDestinoMetros: Double?
         get() {
-            val latDestino = latitudeEntrega ?: return null
-            val lngDestino = longitudeEntrega ?: return null
             val latEntregue = latitudeEntregue ?: return null
             val lngEntregue = longitudeEntregue ?: return null
-            return distanciaEmMetros(latDestino, lngDestino, latEntregue, lngEntregue)
+            return distanciaAteDestinoMetros(latEntregue, lngEntregue)
         }
+
+    /** Distância de uma posição até o ponto marcado pelo comprador, se houver um. */
+    fun distanciaAteDestinoMetros(latitude: Double, longitude: Double): Double? {
+        val latDestino = latitudeEntrega ?: return null
+        val lngDestino = longitudeEntrega ?: return null
+        return distanciaEmMetros(latDestino, lngDestino, latitude, longitude)
+    }
+
+    /** O entregador está tão longe do destino que a entrega pede confirmação. */
+    fun longeDoDestino(latitude: Double, longitude: Double): Boolean =
+        (distanciaAteDestinoMetros(latitude, longitude) ?: 0.0) > DISTANCIA_PARA_CONFIRMAR_METROS
+
+    companion object {
+        /** Folga para a imprecisão do GPS e para o ponto marcado na calçada errada. */
+        const val DISTANCIA_PARA_CONFIRMAR_METROS = 300.0
+    }
 }

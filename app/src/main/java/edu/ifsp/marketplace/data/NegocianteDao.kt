@@ -28,6 +28,9 @@ interface NegocianteDao {
     @Query("SELECT * FROM negociantes WHERE pendingDelete = 1")
     suspend fun getPendingDelete(): List<Negociante>
 
+    @Query("SELECT * FROM negociantes WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): Negociante?
+
     @Query("SELECT * FROM negociantes WHERE firestoreId = :firestoreId LIMIT 1")
     suspend fun getByFirestoreId(firestoreId: String): Negociante?
 
@@ -61,4 +64,15 @@ interface NegocianteDao {
     /** Só libera a pendência se o negociante não mudou enquanto era enviado à nuvem. */
     @Query("UPDATE negociantes SET firestoreId = :firestoreId, pendingSync = CASE WHEN updatedAt = :updatedAt THEN 0 ELSE 1 END WHERE id = :id")
     suspend fun marcarSincronizado(id: Long, firestoreId: String, updatedAt: Long)
+
+    @Query("UPDATE negociantes SET nome = :nome, email = :email, telefone = :telefone, updatedAt = :updatedAt, pendingSync = 1 WHERE id = :id")
+    suspend fun atualizarDados(id: Long, nome: String, email: String, telefone: String, updatedAt: Long)
+
+    /** Liga ou desliga ("") a conta do Firebase Auth deste negociante. */
+    @Query("UPDATE negociantes SET usuarioUid = :usuarioUid, updatedAt = :updatedAt, pendingSync = 1 WHERE id = :id")
+    suspend fun definirUsuario(id: Long, usuarioUid: String, updatedAt: Long)
+
+    /** Uma conta age como um negociante só: solta os outros que ela tinha. */
+    @Query("UPDATE negociantes SET usuarioUid = '', updatedAt = :updatedAt, pendingSync = 1 WHERE usuarioUid = :usuarioUid AND id != :manterId")
+    suspend fun soltarOutrosDoUsuario(usuarioUid: String, manterId: Long, updatedAt: Long)
 }

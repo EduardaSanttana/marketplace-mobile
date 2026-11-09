@@ -8,6 +8,8 @@ data class Avaliacao(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val produtoId: Long = 0,
+    // O produto em qualquer aparelho; produtoId só vale neste
+    val produtoFirestoreId: String? = null,
     val nota: Int = 0,
     val comentario: String = "",
     val firestoreId: String? = null,

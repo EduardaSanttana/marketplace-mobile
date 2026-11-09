@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,13 +43,20 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 
+/**
+ * @param entrando verdadeiro enquanto o Firebase confere a conta: bloqueia um segundo envio
+ * @param erro mensagem da última tentativa que falhou, já em português
+ */
 @Composable
 fun LoginScreen(
-    onLogin: (email: String, senha: String) -> Unit
+    onLogin: (email: String, senha: String) -> Unit,
+    entrando: Boolean = false,
+    erro: String? = null
 ) {
     var email by remember { mutableStateOf("") }
     var senha by remember { mutableStateOf("") }
     var senhaVisivel by remember { mutableStateOf(false) }
+    val podeEntrar = !entrando && email.isNotBlank() && senha.isNotEmpty()
 
     val gradiente = Brush.verticalGradient(
         colors = listOf(
@@ -156,10 +164,20 @@ fun LoginScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                erro?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 12.dp)
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Button(
                     onClick = { onLogin(email, senha) },
+                    enabled = podeEntrar,
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
@@ -168,7 +186,15 @@ fun LoginScreen(
                         .fillMaxWidth()
                         .height(52.dp)
                 ) {
-                    Text("Entrar", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                    if (entrando) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    } else {
+                        Text("Entrar", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                    }
                 }
             }
 

@@ -16,10 +16,12 @@ class SyncManager(
     scope: CoroutineScope,
     firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
-    private val produtoRepo = ProdutoSyncRepository(db.produtoDao(), firestore, scope)
-    private val negocianteRepo = NegocianteSyncRepository(db.negocianteDao(), firestore, scope)
-    private val avaliacaoRepo = AvaliacaoSyncRepository(db.avaliacaoDao(), firestore, scope)
-    private val pedidoRepo = PedidoSyncRepository(db.pedidoDao(), firestore, scope)
+    private val vinculos = Vinculos(db)
+
+    private val produtoRepo = ProdutoSyncRepository(db.produtoDao(), db.negocianteDao(), firestore, scope, vinculos::religar)
+    private val negocianteRepo = NegocianteSyncRepository(db.negocianteDao(), firestore, scope, vinculos::religar)
+    private val avaliacaoRepo = AvaliacaoSyncRepository(db.avaliacaoDao(), db.produtoDao(), firestore, scope, vinculos::religar)
+    private val pedidoRepo = PedidoSyncRepository(db.pedidoDao(), db.produtoDao(), db.negocianteDao(), firestore, scope, vinculos::religar)
 
     private val mutex = Mutex()
 
@@ -44,8 +46,11 @@ class SyncManager(
         mutex.withLock {
             _status.value = SyncStatus.SINCRONIZANDO
             try {
-                produtoRepo.pushPendingChanges()
+                vinculos.religar()
+                // Quem é referenciado vai antes: o envio de um produto precisa do id do
+                // vendedor no Firestore, e o de um pedido, dos ids do produto e dos negociantes
                 negocianteRepo.pushPendingChanges()
+                produtoRepo.pushPendingChanges()
                 avaliacaoRepo.pushPendingChanges()
                 pedidoRepo.pushPendingChanges()
                 _status.value = SyncStatus.OCIOSO

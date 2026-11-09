@@ -9,11 +9,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -22,33 +21,41 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import edu.ifsp.marketplace.data.Negociante
 import edu.ifsp.marketplace.data.Produto
 import edu.ifsp.marketplace.ui.CadastroViewModel
 
+/** Avaliações de produtos; o negociante da conta avalia só o que comprou, como pede o manual. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AvaliacaoScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier) {
+fun AvaliacaoScreen(viewModel: CadastroViewModel, eu: Negociante, modifier: Modifier = Modifier) {
     var produtoSelecionado by remember { mutableStateOf<Produto?>(null) }
     var menuExpandido by remember { mutableStateOf(false) }
-    var nota by remember { mutableStateOf("") }
+    // 0 = ainda sem nota; as estrelas só permitem de 1 a 5
+    var nota by remember { mutableIntStateOf(0) }
     var comentario by remember { mutableStateOf("") }
 
     val produtos by viewModel.produtos.collectAsState()
+    val pedidos by viewModel.pedidos.collectAsState()
     val avaliacoes by viewModel.avaliacoes.collectAsState()
+    val comprados = produtos.filter { produto ->
+        pedidos.any { it.compradorId == eu.id && it.produtoId == produto.id }
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxWidth().padding(16.dp),
@@ -76,14 +83,14 @@ fun AvaliacaoScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier)
                         expanded = menuExpandido,
                         onDismissRequest = { menuExpandido = false }
                     ) {
-                        if (produtos.isEmpty()) {
+                        if (comprados.isEmpty()) {
                             DropdownMenuItem(
-                                text = { Text("Nenhum produto cadastrado") },
+                                text = { Text("Compre um produto na Vitrine para avaliá-lo") },
                                 onClick = { menuExpandido = false },
                                 enabled = false
                             )
                         }
-                        produtos.forEach { produto ->
+                        comprados.forEach { produto ->
                             DropdownMenuItem(
                                 text = { Text(produto.nome) },
                                 onClick = {
@@ -94,14 +101,19 @@ fun AvaliacaoScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier)
                         }
                     }
                 }
-                OutlinedTextField(
-                    value = nota,
-                    onValueChange = { nota = it },
-                    label = { Text("Nota (1 a 5)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Text("Nota", style = MaterialTheme.typography.labelLarge)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    (1..5).forEach { valor ->
+                        IconButton(onClick = { nota = valor }) {
+                            Icon(
+                                imageVector = if (valor <= nota) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                contentDescription = "Nota $valor",
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = comentario,
                     onValueChange = { comentario = it },
@@ -110,15 +122,15 @@ fun AvaliacaoScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier)
                     modifier = Modifier.fillMaxWidth()
                 )
                 BotaoSalvar(
-                    habilitado = produtoSelecionado != null && nota.isNotBlank(),
+                    habilitado = produtoSelecionado != null && nota in 1..5,
                     onClick = {
                         viewModel.cadastrarAvaliacao(
-                            produtoId = produtoSelecionado?.id ?: 0L,
-                            nota = nota.toIntOrNull() ?: 0,
+                            produto = produtoSelecionado ?: return@BotaoSalvar,
+                            nota = nota,
                             comentario = comentario
                         )
                         produtoSelecionado = null
-                        nota = ""
+                        nota = 0
                         comentario = ""
                     }
                 )
@@ -139,7 +151,7 @@ fun AvaliacaoScreen(viewModel: CadastroViewModel, modifier: Modifier = Modifier)
 
         items(avaliacoes, key = { it.id }) { avaliacao ->
             val nomeProduto = produtos.find { it.id == avaliacao.produtoId }?.nome
-                ?: "Produto #${avaliacao.produtoId}"
+                ?: "Produto removido"
 
             Card(
                 shape = RoundedCornerShape(18.dp),
@@ -178,7 +190,7 @@ private fun EstrelasNota(nota: Int) {
     Row {
         repeat(5) { indice ->
             Icon(
-                imageVector = if (indice < nota) Icons.Filled.Star else Icons.Outlined.Star,
+                imageVector = if (indice < nota) Icons.Filled.Star else Icons.Filled.StarBorder,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier.size(18.dp)

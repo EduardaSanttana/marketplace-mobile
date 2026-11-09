@@ -42,8 +42,8 @@ Outras ligações feitas nesta entrega:
 - **Indicar e visualizar.** A aba **Entrega** indica o endereço do negociante; o toque
   só posiciona o pino, e nada muda até salvar. Na aba **Pedidos**, **Ver no mapa**
   mostra o destino daquele pedido, só para consulta.
-- **Rota → entrega.** A tela de rota permite retirar o pacote e, ao chegar,
-  registrar a entrega, sem voltar para a lista.
+- **Rota → entrega.** A rota vai primeiro até o vendedor. Ao retirar o pacote, é
+  recalculada até o comprador e, ao chegar, a mesma tela registra a entrega.
 - **Recalcular** parte da posição atual, não da posição de quando a tela abriu.
 
 ---
@@ -104,15 +104,18 @@ durante o envio. Antes, o fim do envio sobrescrevia o registro com a versão ant
 
 ## Como testar
 
-1. Perfil **Entregador** → aba **Negociantes**: cadastrar dois negociantes.
-2. Perfil **Negociante** → **Produtos**: cadastrar um produto do primeiro negociante.
-3. **Vitrine**: comprar com o segundo, **ainda sem ponto de entrega**.
-4. Aba **Entrega**: escolher o comprador e tocar no mapa. O endereço aparece sozinho;
+1. Em **Quem é você?**, cada conta cria o próprio cadastro (**Ainda não tenho cadastro**)
+   ou escolhe um existente. São dois negociantes: um vende, outro compra.
+2. Com a conta do vendedor, perfil **Negociante** → **Produtos**: cadastrar um produto.
+3. Com a conta do comprador, **Vitrine**: comprar, **ainda sem ponto de entrega**.
+   Com uma conta só, **Não sou eu** na Vitrine troca de negociante.
+4. Aba **Entrega**: tocar no mapa. O endereço aparece sozinho;
    tocar em **Salvar ponto de entrega**.
 5. Aba **Pedidos**: **Ver no mapa** mostra o destino do pedido. Perfil **Entregador** →
    **Entregas**: o pedido já mostra o destino e a **Rota** está liberada.
 6. **Retirar** e abrir a **Rota**: aparecem partida, destino e traçado.
-7. **Cheguei: registrar entrega**: conceder as permissões e tirar a foto.
+7. **Cheguei: registrar entrega**: conceder as permissões e tirar a foto. A mais de
+   300 m do ponto marcado, o app pergunta antes de abrir a câmera.
 8. Conferir endereço, coordenadas e distância na lista e na aba **Pedidos** do negociante.
 
 **Sem conexão:** repetir o passo 7 em modo avião. A entrega é registrada com endereço

@@ -12,6 +12,8 @@ data class Produto(
     val preco: Double = 0.0,
     val quantidade: Int = 0,
     val negocianteId: Long = 0,
+    // O vendedor em qualquer aparelho; negocianteId só vale neste
+    val negocianteFirestoreId: String? = null,
     val fotoPath: String? = null,
     val firestoreId: String? = null,
     val updatedAt: Long = System.currentTimeMillis(),
