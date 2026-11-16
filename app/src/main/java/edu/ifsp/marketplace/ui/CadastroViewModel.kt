@@ -12,6 +12,9 @@ import edu.ifsp.marketplace.data.Produto
 import edu.ifsp.marketplace.data.sync.EstadoSincronizacao
 import edu.ifsp.marketplace.data.sync.SyncManager
 import edu.ifsp.marketplace.data.sync.observarConectividade
+import edu.ifsp.marketplace.geofencing.ChegadaEntregador
+import edu.ifsp.marketplace.geofencing.GeofenceEntrega
+import edu.ifsp.marketplace.geofencing.NotificacaoEntrega
 import edu.ifsp.marketplace.util.GeocodificacaoService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +31,12 @@ import java.io.File
 class CadastroViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getInstance(application)
-    private val syncManager = SyncManager(db, viewModelScope)
+    private val syncManager = SyncManager(
+        db,
+        viewModelScope,
+        // O pedido chegou da nuvem com o entregador perto: avisa se esta conta é a do comprador
+        aoAproximarEntregador = { NotificacaoEntrega.avisarSeForComprador(application, db, it) }
+    )
 
     val produtos: StateFlow<List<Produto>> = db.produtoDao().getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -242,11 +250,24 @@ class CadastroViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /** O entregador retirou o pacote: o pedido passa a ser rastreável. */
+    /**
+     * O entregador retirou o pacote: o pedido passa a ser rastreável e o
+     * perímetro do destino começa a ser vigiado (geofencing).
+     */
     fun iniciarTransporte(pedido: Pedido) {
         viewModelScope.launch {
             db.pedidoDao().registrarRetirada(pedido.id, System.currentTimeMillis())
+            db.pedidoDao().getById(pedido.id)?.let { GeofenceEntrega.registrar(getApplication(), it) }
             syncManager.syncAgora()
+        }
+    }
+
+    /** A tela de rota, aberta, viu o entregador dentro do perímetro do destino. */
+    fun marcarEntregadorProximo(pedidoId: Long) {
+        viewModelScope.launch {
+            if (ChegadaEntregador.registrar(getApplication(), db, pedidoId)) {
+                syncManager.syncAgora()
+            }
         }
     }
 
@@ -260,6 +281,7 @@ class CadastroViewModel(application: Application) : AndroidViewModel(application
      */
     fun registrarEntrega(pedidoId: Long, fotoPath: String, latitude: Double, longitude: Double) {
         viewModelScope.launch {
+            GeofenceEntrega.remover(getApplication(), pedidoId)
             val agora = System.currentTimeMillis()
             db.pedidoDao().registrarEntrega(
                 id = pedidoId,
@@ -304,6 +326,7 @@ class CadastroViewModel(application: Application) : AndroidViewModel(application
     fun excluirPedido(pedido: Pedido) {
         viewModelScope.launch {
             db.pedidoDao().markPendingDelete(pedido.id)
+            GeofenceEntrega.remover(getApplication(), pedido.id)
             // A foto da entrega só existe neste aparelho e não serve a mais nada
             pedido.fotoEntregaPath?.let { File(it).delete() }
             syncManager.syncAgora()

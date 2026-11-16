@@ -1,6 +1,7 @@
 package edu.ifsp.marketplace.data.sync
 
 import edu.ifsp.marketplace.data.AppDatabase
+import edu.ifsp.marketplace.data.Pedido
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,14 +15,15 @@ enum class SyncStatus { OCIOSO, SINCRONIZANDO, ERRO }
 class SyncManager(
     db: AppDatabase,
     scope: CoroutineScope,
-    firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
+    firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    aoAproximarEntregador: suspend (Pedido) -> Unit = {}
 ) {
     private val vinculos = Vinculos(db)
 
     private val produtoRepo = ProdutoSyncRepository(db.produtoDao(), db.negocianteDao(), firestore, scope, vinculos::religar)
     private val negocianteRepo = NegocianteSyncRepository(db.negocianteDao(), firestore, scope, vinculos::religar)
     private val avaliacaoRepo = AvaliacaoSyncRepository(db.avaliacaoDao(), db.produtoDao(), firestore, scope, vinculos::religar)
-    private val pedidoRepo = PedidoSyncRepository(db.pedidoDao(), db.produtoDao(), db.negocianteDao(), firestore, scope, vinculos::religar)
+    private val pedidoRepo = PedidoSyncRepository(db.pedidoDao(), db.produtoDao(), db.negocianteDao(), firestore, scope, vinculos::religar, aoAproximarEntregador)
 
     private val mutex = Mutex()
 
