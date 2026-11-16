@@ -29,6 +29,9 @@ interface PedidoDao {
     @Query("SELECT * FROM pedidos WHERE pendingDelete = 1")
     suspend fun getPendingDelete(): List<Pedido>
 
+    @Query("SELECT * FROM pedidos WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): Pedido?
+
     @Query("SELECT * FROM pedidos WHERE firestoreId = :firestoreId LIMIT 1")
     suspend fun getByFirestoreId(firestoreId: String): Pedido?
 
@@ -47,6 +50,15 @@ interface PedidoDao {
     /** O entregador pegou o pacote: em transporte, com a hora da retirada para a linha do tempo. */
     @Query("UPDATE pedidos SET status = 'EM_TRANSPORTE', retiradoEm = :agora, updatedAt = :agora, pendingSync = 1 WHERE id = :id")
     suspend fun registrarRetirada(id: Long, agora: Long)
+
+    /**
+     * O entregador entrou no perímetro do destino. Só vale uma vez por pedido e
+     * só em transporte: o geofence e a tela de rota podem disparar juntos.
+     *
+     * @return 1 se marcou agora, 0 se já estava marcado ou o pedido mudou de etapa
+     */
+    @Query("UPDATE pedidos SET entregadorProximoEm = :agora, updatedAt = :agora, pendingSync = 1 WHERE id = :id AND status = 'EM_TRANSPORTE' AND entregadorProximoEm IS NULL")
+    suspend fun marcarEntregadorProximo(id: Long, agora: Long): Int
 
     /** Grava a comprovação da entrega: foto, coordenadas e endereço. */
     @Query(

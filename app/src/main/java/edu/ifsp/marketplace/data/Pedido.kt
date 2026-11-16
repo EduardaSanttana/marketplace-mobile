@@ -67,6 +67,10 @@ data class Pedido(
     val criadoEm: Long? = null,
     val retiradoEm: Long? = null,
 
+    // Quando o entregador entrou no perímetro do ponto de entrega (geofencing):
+    // é o sinal que vira notificação no aparelho do comprador
+    val entregadorProximoEm: Long? = null,
+
     // Comprovação registrada pelo entregador
     val fotoEntregaPath: String? = null,
     val latitudeEntregue: Double? = null,
@@ -114,11 +118,18 @@ data class Pedido(
         return distanciaEmMetros(latDestino, lngDestino, latitude, longitude)
     }
 
+    /** Em transporte, com destino, e o comprador ainda não foi avisado da chegada. */
+    val aguardandoAvisoDeChegada: Boolean
+        get() = situacao == StatusPedido.EM_TRANSPORTE && temDestino && entregadorProximoEm == null
+
     /** O entregador está tão longe do destino que a entrega pede confirmação. */
     fun longeDoDestino(latitude: Double, longitude: Double): Boolean =
         (distanciaAteDestinoMetros(latitude, longitude) ?: 0.0) > DISTANCIA_PARA_CONFIRMAR_METROS
 
     companion object {
+        /** Raio do perímetro em volta do ponto de entrega que conta como "entregador próximo". */
+        const val RAIO_ENTREGADOR_PROXIMO_METROS = 500f
+
         /** Folga para a imprecisão do GPS e para o ponto marcado na calçada errada. */
         const val DISTANCIA_PARA_CONFIRMAR_METROS = 300.0
     }

@@ -59,6 +59,10 @@ Negociante compra          Entregador retira        Entregador registra
       |                           |                   foto + coordenadas
       v                           v                           v
   AGUARDANDO  ----------->  EM TRANSPORTE  -------------->  ENTREGUE
+                                  |
+                       entra no raio de 500 m
+                                  v
+                    comprador notificado (geofencing)
 ```
 
 O negociante acompanha esses três estágios na aba **Pedidos**.
@@ -79,6 +83,8 @@ O ponto marcado no mapa é o destino da rota, e o endereço do local real da ent
 - **Google Maps** para exibição do mapa
 - **OSRM / OpenStreetMap** para cálculo de rotas
 - **Geocoder do Android / Photon (OpenStreetMap)** para obter endereços a partir de coordenadas
+- **Geofencing API** (Google Play Services) para detectar o entregador perto do destino,
+  com o aviso ao comprador indo pelo Firestore e virando notificação local
 
 Os dados são sempre gravados primeiro no SQLite e enviados ao Firestore quando
 houver conectividade, conforme exigido pelo manual do curso. Uma faixa sob a
@@ -120,7 +126,8 @@ O arquivo `app/google-services.json` do Firebase também é necessário.
 │   ├── e3-foto/aluno_bruno/        Fotos no sistema de arquivos
 │   ├── e4-entrega/aluno_thomaz/    Ponto de entrega no mapa
 │   ├── e5-rotas/aluno_eduarda/     Geração de rotas
-│   └── e6-geocoding/aluno_thomaz/  Endereços a partir de coordenadas
+│   ├── e6-geocoding/aluno_thomaz/  Endereços a partir de coordenadas
+│   └── e7-geofencing/aluno_bruno/  Perímetro e notificação de entregador próximo
 ├── docs/                       Documentação técnica
 ├── .gitignore
 └── README.md

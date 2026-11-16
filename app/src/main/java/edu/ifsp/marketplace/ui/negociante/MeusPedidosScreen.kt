@@ -251,6 +251,19 @@ fun MeusPedidosScreen(viewModel: CadastroViewModel, eu: Negociante, modifier: Mo
                             modifier = Modifier.padding(top = 14.dp)
                         )
 
+                        // Geofencing: o entregador entrou no perímetro do ponto de entrega
+                        pedido.entregadorProximoEm
+                            ?.takeIf { pedido.situacao == StatusPedido.EM_TRANSPORTE }
+                            ?.let {
+                                Text(
+                                    "Entregador a menos de ${Pedido.RAIO_ENTREGADOR_PROXIMO_METROS.toInt()} m " +
+                                        "do destino desde ${horario(it)}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 10.dp)
+                                )
+                            }
+
                         Text(
                             "Entrega em: ${pedido.enderecoEntrega.ifBlank { "endereço não definido" }}",
                             style = MaterialTheme.typography.bodySmall,

@@ -18,7 +18,8 @@ class PedidoSyncRepository(
     private val negocianteDao: NegocianteDao,
     firestore: FirebaseFirestore,
     private val scope: CoroutineScope,
-    private val religar: suspend () -> Unit
+    private val religar: suspend () -> Unit,
+    private val aoAproximarEntregador: suspend (Pedido) -> Unit
 ) {
     private val collection = firestore.collection("pedidos")
     private var listener: ListenerRegistration? = null
@@ -49,10 +50,13 @@ class PedidoSyncRepository(
                 val remote = doc.toObject(Pedido::class.java).copy(firestoreId = doc.id)
                 val local = dao.getByFirestoreId(doc.id)
                 if (local == null || remote.updatedAt >= local.updatedAt) {
+                    // Outro aparelho (o do entregador) acabou de marcar a chegada
+                    val chegouAgora = remote.entregadorProximoEm != null &&
+                        local?.entregadorProximoEm == null
                     val produto = remote.produtoFirestoreId ?: local?.produtoFirestoreId
                     val comprador = remote.compradorFirestoreId ?: local?.compradorFirestoreId
                     val vendedor = remote.vendedorFirestoreId ?: local?.vendedorFirestoreId
-                    dao.upsertFromRemote(
+                    val idLocal = dao.upsertFromRemote(
                         remote.copy(
                             id = local?.id ?: 0,
                             produtoId = idLocalDoVinculo(
@@ -72,10 +76,12 @@ class PedidoSyncRepository(
                             vendedorFirestoreId = vendedor,
                             // A foto da entrega vive só no dispositivo que a tirou
                             fotoEntregaPath = local?.fotoEntregaPath,
+                            entregadorProximoEm = remote.entregadorProximoEm ?: local?.entregadorProximoEm,
                             pendingSync = false,
                             pendingDelete = false
                         )
                     )
+                    if (chegouAgora) dao.getById(idLocal)?.let { aoAproximarEntregador(it) }
                 }
             }
 
@@ -130,6 +136,7 @@ class PedidoSyncRepository(
             // Ausentes, e não nulos: o merge não apaga o que outro aparelho já gravou
             pedido.criadoEm?.let { dados["criadoEm"] = it }
             pedido.retiradoEm?.let { dados["retiradoEm"] = it }
+            pedido.entregadorProximoEm?.let { dados["entregadorProximoEm"] = it }
             produto?.let { dados["produtoFirestoreId"] = it }
             comprador?.let { dados["compradorFirestoreId"] = it }
             vendedor?.let { dados["vendedorFirestoreId"] = it }

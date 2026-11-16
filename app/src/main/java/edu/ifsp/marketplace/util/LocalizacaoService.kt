@@ -6,7 +6,14 @@ import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import android.os.Looper
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -41,5 +48,26 @@ object LocalizacaoService {
         } catch (e: ApiException) {
             null
         }
+    }
+
+    /**
+     * Posições do aparelho enquanto alguém coleta o fluxo. Usado pela tela de
+     * rota para conferir a chegada ao destino quando o geofence não está ativo.
+     */
+    @SuppressLint("MissingPermission")
+    fun atualizacoes(context: Context, intervaloMs: Long = 5_000): Flow<LatLng> = callbackFlow {
+        if (!temPermissao(context)) {
+            close()
+            return@callbackFlow
+        }
+        val cliente = LocationServices.getFusedLocationProviderClient(context)
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(resultado: LocationResult) {
+                resultado.lastLocation?.let { trySend(LatLng(it.latitude, it.longitude)) }
+            }
+        }
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervaloMs).build()
+        cliente.requestLocationUpdates(request, callback, Looper.getMainLooper())
+        awaitClose { cliente.removeLocationUpdates(callback) }
     }
 }
