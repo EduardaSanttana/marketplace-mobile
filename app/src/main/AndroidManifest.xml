@@ -7,6 +7,10 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Geofencing: o perímetro do destino é vigiado com o app fechado (Android 10+) -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Aviso "entregador próximo" ao comprador (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
@@ -37,6 +41,10 @@
 
 
         </activity>
+
+        <receiver
+            android:name=".geofencing.GeofenceReceiver"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

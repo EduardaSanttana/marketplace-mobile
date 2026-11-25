@@ -53,7 +53,13 @@ import edu.ifsp.marketplace.data.sync.EstadoSincronizacao
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.Manifest
 import android.content.Context
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import edu.ifsp.marketplace.geofencing.NotificacaoEntrega
 import edu.ifsp.marketplace.ui.negociante.EscolherNegocianteScreen
 import edu.ifsp.marketplace.ui.cadastro.AvaliacaoScreen
 import edu.ifsp.marketplace.ui.cadastro.ProdutoScreen
@@ -193,6 +199,17 @@ fun MarketplaceApp(
     }
 
     val estadoSincronizacao by viewModel.estadoSincronizacao.collectAsState()
+
+    // O aviso de "entregador próximo" é uma notificação: no Android 13+ ela pede permissão
+    val pedirNotificacoes = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    LaunchedEffect(Unit) {
+        NotificacaoEntrega.criarCanal(context)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !NotificacaoEntrega.podeNotificar(context)) {
+            pedirNotificacoes.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     Scaffold(
         topBar = {

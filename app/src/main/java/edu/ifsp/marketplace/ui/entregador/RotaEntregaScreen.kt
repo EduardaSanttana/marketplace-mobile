@@ -15,6 +15,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -42,7 +43,10 @@ import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
 import edu.ifsp.marketplace.data.Pedido
 import edu.ifsp.marketplace.data.StatusPedido
+import edu.ifsp.marketplace.geofencing.GeofenceEntrega
 import edu.ifsp.marketplace.ui.CadastroViewModel
+import android.Manifest
+import edu.ifsp.marketplace.util.distanciaEmMetros
 import edu.ifsp.marketplace.util.GeocodificacaoService
 import edu.ifsp.marketplace.util.LocalizacaoService
 import edu.ifsp.marketplace.util.Rota
@@ -91,6 +95,8 @@ fun RotaEntregaScreen(
     var calculando by remember { mutableStateOf(false) }
     var mensagem by remember { mutableStateOf("Obtendo sua localização...") }
     var temPermissao by remember { mutableStateOf(LocalizacaoService.temPermissao(context)) }
+    var temSegundoPlano by remember { mutableStateOf(GeofenceEntrega.temPermissaoSegundoPlano(context)) }
+    var geofenceAtivo by remember { mutableStateOf(false) }
 
     val cameraState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(alvo ?: POSICAO_PADRAO, 13f)
@@ -158,6 +164,33 @@ fun RotaEntregaScreen(
         else pedirPermissao.launch(LocalizacaoService.PERMISSOES)
     }
 
+    val pedirSegundoPlano = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { concedida -> temSegundoPlano = concedida }
+
+    // Geofencing: o perímetro do destino é vigiado pelo sistema, com o app aberto
+    // ou não. Reabrir a rota recria o geofence perdido num reinício do aparelho
+    val aguardandoAviso = pedido.aguardandoAvisoDeChegada
+    LaunchedEffect(pedido.id, aguardandoAviso, pedido.latitudeEntrega, pedido.longitudeEntrega, temSegundoPlano) {
+        geofenceAtivo = aguardandoAviso && GeofenceEntrega.registrar(context, pedido)
+    }
+
+    // Com a tela aberta, a própria posição confere a chegada: cobre quem não
+    // liberou a localização em segundo plano e o atraso do geofence
+    LaunchedEffect(pedido.id, aguardandoAviso, temPermissao) {
+        val latDestino = pedido.latitudeEntrega
+        val lngDestino = pedido.longitudeEntrega
+        if (!aguardandoAviso || !temPermissao || latDestino == null || lngDestino == null) {
+            return@LaunchedEffect
+        }
+        LocalizacaoService.atualizacoes(context).collect { posicao ->
+            val distancia = distanciaEmMetros(latDestino, lngDestino, posicao.latitude, posicao.longitude)
+            if (distancia <= Pedido.RAIO_ENTREGADOR_PROXIMO_METROS) {
+                viewModel.marcarEntregadorProximo(pedido.id)
+            }
+        }
+    }
+
     // O endereço de partida é só informativo: não segura o cálculo da rota
     LaunchedEffect(origem) {
         val ponto = origem ?: return@LaunchedEffect
@@ -204,6 +237,16 @@ fun RotaEntregaScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 8.dp)
             )
+            if (pedido.situacao == StatusPedido.EM_TRANSPORTE && pedido.temDestino) {
+                AvisoAoComprador(
+                    avisado = pedido.entregadorProximoEm != null,
+                    geofenceAtivo = geofenceAtivo,
+                    temSegundoPlano = temSegundoPlano,
+                    onPermitirSegundoPlano = {
+                        pedirSegundoPlano.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                    }
+                )
+            }
             // Quem atende no ponto para onde a rota leva agora
             if (pedido.situacao != StatusPedido.ENTREGUE) {
                 BotaoLigar(
@@ -310,6 +353,33 @@ fun RotaEntregaScreen(
             ) {
                 Text(if (rota == null) "Gerar rota" else "Recalcular")
             }
+        }
+    }
+}
+
+/** Estado do aviso de "entregador próximo" que o comprador vai receber. */
+@Composable
+private fun AvisoAoComprador(
+    avisado: Boolean,
+    geofenceAtivo: Boolean,
+    temSegundoPlano: Boolean,
+    onPermitirSegundoPlano: () -> Unit
+) {
+    val raio = Pedido.RAIO_ENTREGADOR_PROXIMO_METROS.toInt()
+    Text(
+        text = when {
+            avisado -> "Comprador avisado: você está a menos de $raio m do destino."
+            geofenceAtivo -> "O comprador será avisado a $raio m do destino, mesmo com o app fechado."
+            else -> "O comprador será avisado a $raio m do destino enquanto esta tela estiver aberta."
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = if (avisado) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 6.dp)
+    )
+    if (!avisado && !temSegundoPlano) {
+        // No Android 11+ o sistema leva às configurações: escolher "Permitir o tempo todo"
+        TextButton(onClick = onPermitirSegundoPlano) {
+            Text("Permitir localização em segundo plano")
         }
     }
 }
