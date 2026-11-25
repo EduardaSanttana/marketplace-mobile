@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Storefront
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.outlined.LocalShipping
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.RateReview
@@ -75,9 +74,9 @@ import edu.ifsp.marketplace.ui.negociante.VitrineScreen
 /**
  * Os dois perfis de usuário previstos no projeto #2 do manual.
  *
- * Como negociante, a conta age só como o negociante ligado a ela (escolhido no
- * primeiro acesso). A troca para entregador fica no botão da barra superior,
- * para a mesma conta poder demonstrar os dois lados do marketplace.
+ * O perfil vem da conta: ligada a um negociante, ela é negociante; quem tocou
+ * em "Sou só entregador" é entregador. Não há troca dentro do app: para usar o
+ * outro perfil, sai-se da conta e entra-se com a conta daquele papel.
  */
 enum class PerfilUsuario(val rotulo: String) {
     NEGOCIANTE("Negociante"),
@@ -153,17 +152,14 @@ fun MarketplaceApp(
     val viewModel: CadastroViewModel = viewModel()
     val context = LocalContext.current
 
-    // Último perfil usado por esta conta: quem escolheu "Sou entregador" não vê
-    // de novo a escolha de negociante a cada abertura
+    // Conta que escolheu "Sou só entregador": vale até sair da conta, para quem
+    // errou a escolha poder refazê-la no próximo login
     val preferencias = remember { context.getSharedPreferences("perfil", Context.MODE_PRIVATE) }
     val chavePerfil = "ultimo_perfil_$usuarioUid"
 
     // Sobrevivem à recriação da Activity, para a volta da câmera cair na mesma tela
-    var perfil by rememberSaveable {
-        mutableStateOf(
-            PerfilUsuario.entries.firstOrNull { it.name == preferencias.getString(chavePerfil, null) }
-                ?: PerfilUsuario.NEGOCIANTE
-        )
+    var contaEntregador by rememberSaveable {
+        mutableStateOf(preferencias.getString(chavePerfil, null) == PerfilUsuario.ENTREGADOR.name)
     }
     var abaSelecionada by rememberSaveable { mutableIntStateOf(0) }
     var mostrarDialogoSaida by remember { mutableStateOf(false) }
@@ -171,7 +167,10 @@ fun MarketplaceApp(
     val negociantes by viewModel.negociantes.collectAsState()
     val negociantesCarregados by viewModel.negociantesCarregados.collectAsState()
     val eu = negociantes.firstOrNull { it.usuarioUid == usuarioUid }
-    // Sem negociante ligado, o perfil Negociante mostra só a escolha de quem a conta é
+
+    // Conta ligada a um negociante é negociante, mesmo que antes tenha escolhido entregar
+    val perfil = if (eu == null && contaEntregador) PerfilUsuario.ENTREGADOR else PerfilUsuario.NEGOCIANTE
+    // Sem negociante ligado nem escolha de entregador, mostra só "Quem é você?"
     val escolhendoNegociante = perfil == PerfilUsuario.NEGOCIANTE && eu == null
 
     // Quando um pedido está aberto para roteirização, a tela de rota ocupa a área inteira.
@@ -185,20 +184,16 @@ fun MarketplaceApp(
         PerfilUsuario.ENTREGADOR -> abasEntregador
     }
 
-    fun usarPerfil(novo: PerfilUsuario) {
-        perfil = novo
-        preferencias.edit().putString(chavePerfil, novo.name).apply()
+    fun virarEntregador() {
+        contaEntregador = true
+        preferencias.edit().putString(chavePerfil, PerfilUsuario.ENTREGADOR.name).apply()
         abaSelecionada = 0
         pedidoEmRotaId = null
     }
 
-    fun trocarPerfil() {
-        usarPerfil(
-            when (perfil) {
-                PerfilUsuario.NEGOCIANTE -> PerfilUsuario.ENTREGADOR
-                PerfilUsuario.ENTREGADOR -> PerfilUsuario.NEGOCIANTE
-            }
-        )
+    fun sairDaConta() {
+        preferencias.edit().remove(chavePerfil).apply()
+        onLogout()
     }
 
     val estadoSincronizacao by viewModel.estadoSincronizacao.collectAsState()
@@ -232,23 +227,16 @@ fun MarketplaceApp(
                         actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     actions = {
-                        // Com o nome do outro perfil escrito, a saída do modo entregador fica à vista
-                        val outroPerfil = if (perfil == PerfilUsuario.NEGOCIANTE) PerfilUsuario.ENTREGADOR
-                        else PerfilUsuario.NEGOCIANTE
+                        // Para usar o outro perfil, sai-se da conta: o "Sair" fica escrito
                         TextButton(
-                            onClick = { trocarPerfil() },
+                            onClick = { mostrarDialogoSaida = true },
                             colors = ButtonDefaults.textButtonColors(
                                 contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
-                            modifier = Modifier.semantics {
-                                contentDescription = "Trocar para o perfil ${outroPerfil.rotulo}"
-                            }
+                            modifier = Modifier.semantics { contentDescription = "Sair da conta" }
                         ) {
-                            Icon(Icons.Filled.SwapHoriz, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text(outroPerfil.rotulo, modifier = Modifier.padding(start = 4.dp))
-                        }
-                        IconButton(onClick = { mostrarDialogoSaida = true }) {
-                            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Sair da conta")
+                            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("Sair", modifier = Modifier.padding(start = 4.dp))
                         }
                     }
                 )
@@ -301,7 +289,7 @@ fun MarketplaceApp(
                     onCriar = { nome, email, telefone ->
                         viewModel.criarNegocianteDaConta(nome, email, telefone, usuarioUid)
                     },
-                    onSouEntregador = { usarPerfil(PerfilUsuario.ENTREGADOR) },
+                    onSouEntregador = { virarEntregador() },
                     modifier = conteudo
                 )
             } else key(eu.id) {
@@ -319,7 +307,8 @@ fun MarketplaceApp(
                 }
             }
 
-            PerfilUsuario.ENTREGADOR -> EntregasScreen(
+            // Antes da primeira leitura, um negociante com escolha antiga piscaria como entregador
+            PerfilUsuario.ENTREGADOR -> if (negociantesCarregados) EntregasScreen(
                 viewModel = viewModel,
                 onAbrirRota = { pedido -> pedidoEmRotaId = pedido.id },
                 modifier = conteudo
@@ -340,7 +329,7 @@ fun MarketplaceApp(
             confirmButton = {
                 TextButton(onClick = {
                     mostrarDialogoSaida = false
-                    onLogout()
+                    sairDaConta()
                 }) {
                     Text("Sair")
                 }

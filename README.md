@@ -16,7 +16,7 @@ são guiados no processo de entrega.
 
 ## Perfis de usuário
 
-O perfil ativo é trocado pelo botão de setas na barra superior.
+O perfil vem da conta: a conta ligada a um negociante entra como **Negociante**, e a conta que tocou em **Sou só entregador** entra como **Entregador**. Para usar o outro perfil, toque em **Sair** e entre com a conta daquele papel.
 
 ### Conta e negociante
 
