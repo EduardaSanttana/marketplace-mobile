@@ -43,6 +43,7 @@ import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
 import edu.ifsp.marketplace.data.Pedido
 import edu.ifsp.marketplace.data.StatusPedido
+import edu.ifsp.marketplace.data.sync.RastreioEntregador
 import edu.ifsp.marketplace.geofencing.GeofenceEntrega
 import edu.ifsp.marketplace.ui.CadastroViewModel
 import android.Manifest
@@ -188,6 +189,18 @@ fun RotaEntregaScreen(
             if (distancia <= Pedido.RAIO_ENTREGADOR_PROXIMO_METROS) {
                 viewModel.marcarEntregadorProximo(pedido.id)
             }
+        }
+    }
+
+    // Rastreio ao vivo: em transporte, a posição vai para o Firestore e o comprador
+    // vê o entregador se aproximando no mapa do pedido
+    val emTransporte = pedido.situacao == StatusPedido.EM_TRANSPORTE
+    LaunchedEffect(pedido.firestoreId, emTransporte, temPermissao) {
+        val idNuvem = pedido.firestoreId
+        if (!emTransporte || !temPermissao || idNuvem == null) return@LaunchedEffect
+        LocalizacaoService.posicaoAtual(context)?.let { RastreioEntregador.publicar(idNuvem, it) }
+        LocalizacaoService.atualizacoes(context, intervaloMs = 2_000).collect { posicao ->
+            RastreioEntregador.publicar(idNuvem, posicao)
         }
     }
 

@@ -10,6 +10,7 @@ import edu.ifsp.marketplace.data.Pedido
 import edu.ifsp.marketplace.data.StatusPedido
 import edu.ifsp.marketplace.data.Produto
 import edu.ifsp.marketplace.data.sync.EstadoSincronizacao
+import edu.ifsp.marketplace.data.sync.RastreioEntregador
 import edu.ifsp.marketplace.data.sync.SyncManager
 import edu.ifsp.marketplace.data.sync.observarConectividade
 import edu.ifsp.marketplace.geofencing.ChegadaEntregador
@@ -282,6 +283,7 @@ class CadastroViewModel(application: Application) : AndroidViewModel(application
     fun registrarEntrega(pedidoId: Long, fotoPath: String, latitude: Double, longitude: Double) {
         viewModelScope.launch {
             GeofenceEntrega.remover(getApplication(), pedidoId)
+            db.pedidoDao().getById(pedidoId)?.firestoreId?.let { RastreioEntregador.encerrar(it) }
             val agora = System.currentTimeMillis()
             db.pedidoDao().registrarEntrega(
                 id = pedidoId,
