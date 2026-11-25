@@ -52,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import edu.ifsp.marketplace.data.sync.EstadoSincronizacao
+import edu.ifsp.marketplace.data.sync.observarSeEhEntregador
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -152,15 +153,12 @@ fun MarketplaceApp(
     val viewModel: CadastroViewModel = viewModel()
     val context = LocalContext.current
 
-    // Conta que escolheu "Sou só entregador": vale até sair da conta, para quem
-    // errou a escolha poder refazê-la no próximo login
-    val preferencias = remember { context.getSharedPreferences("perfil", Context.MODE_PRIVATE) }
-    val chavePerfil = "ultimo_perfil_$usuarioUid"
+    // Entregador é quem a equipe pôs na coleção "entregadores" do Firestore; a
+    // própria conta não escolhe. Null enquanto a primeira resposta não chega.
+    val ehEntregador by remember(usuarioEmail) { observarSeEhEntregador(usuarioEmail) }
+        .collectAsState(initial = null)
 
     // Sobrevivem à recriação da Activity, para a volta da câmera cair na mesma tela
-    var contaEntregador by rememberSaveable {
-        mutableStateOf(preferencias.getString(chavePerfil, null) == PerfilUsuario.ENTREGADOR.name)
-    }
     var abaSelecionada by rememberSaveable { mutableIntStateOf(0) }
     var mostrarDialogoSaida by remember { mutableStateOf(false) }
 
@@ -168,9 +166,8 @@ fun MarketplaceApp(
     val negociantesCarregados by viewModel.negociantesCarregados.collectAsState()
     val eu = negociantes.firstOrNull { it.usuarioUid == usuarioUid }
 
-    // Conta ligada a um negociante é negociante, mesmo que antes tenha escolhido entregar
-    val perfil = if (eu == null && contaEntregador) PerfilUsuario.ENTREGADOR else PerfilUsuario.NEGOCIANTE
-    // Sem negociante ligado nem escolha de entregador, mostra só "Quem é você?"
+    val perfil = if (ehEntregador == true) PerfilUsuario.ENTREGADOR else PerfilUsuario.NEGOCIANTE
+    // Conta que não é entregador nem está ligada a um negociante cria o próprio cadastro
     val escolhendoNegociante = perfil == PerfilUsuario.NEGOCIANTE && eu == null
 
     // Quando um pedido está aberto para roteirização, a tela de rota ocupa a área inteira.
@@ -184,17 +181,7 @@ fun MarketplaceApp(
         PerfilUsuario.ENTREGADOR -> abasEntregador
     }
 
-    fun virarEntregador() {
-        contaEntregador = true
-        preferencias.edit().putString(chavePerfil, PerfilUsuario.ENTREGADOR.name).apply()
-        abaSelecionada = 0
-        pedidoEmRotaId = null
-    }
-
-    fun sairDaConta() {
-        preferencias.edit().remove(chavePerfil).apply()
-        onLogout()
-    }
+    fun sairDaConta() = onLogout()
 
     val estadoSincronizacao by viewModel.estadoSincronizacao.collectAsState()
 
@@ -282,14 +269,13 @@ fun MarketplaceApp(
         when (perfil) {
             PerfilUsuario.NEGOCIANTE -> if (eu == null) {
                 // Antes da primeira leitura, a escolha piscaria para quem já está ligado
-                if (negociantesCarregados) EscolherNegocianteScreen(
+                if (negociantesCarregados && ehEntregador == false) EscolherNegocianteScreen(
                     negociantes = negociantes,
                     emailDaConta = usuarioEmail,
                     onEscolher = { viewModel.vincularConta(it, usuarioUid) },
                     onCriar = { nome, email, telefone ->
                         viewModel.criarNegocianteDaConta(nome, email, telefone, usuarioUid)
                     },
-                    onSouEntregador = { virarEntregador() },
                     modifier = conteudo
                 )
             } else key(eu.id) {
@@ -307,8 +293,8 @@ fun MarketplaceApp(
                 }
             }
 
-            // Antes da primeira leitura, um negociante com escolha antiga piscaria como entregador
-            PerfilUsuario.ENTREGADOR -> if (negociantesCarregados) EntregasScreen(
+            // O entregador não tem negociante: vê só as entregas
+            PerfilUsuario.ENTREGADOR -> EntregasScreen(
                 viewModel = viewModel,
                 onAbrirRota = { pedido -> pedidoEmRotaId = pedido.id },
                 modifier = conteudo

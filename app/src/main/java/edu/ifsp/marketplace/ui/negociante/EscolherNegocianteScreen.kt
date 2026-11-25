@@ -24,7 +24,8 @@ import edu.ifsp.marketplace.ui.cadastro.FormularioNegociante
 
 /**
  * Primeiro acesso como negociante: a conta diz qual negociante ela é, ou cria
- * o próprio cadastro. O entregador não cadastra negociantes; cada um se cadastra.
+ * o próprio cadastro. Contas de entregador (coleção "entregadores" no Firestore)
+ * não passam por aqui.
  *
  * O vínculo vai para o cadastro do negociante e segue para a nuvem, então vale
  * em qualquer aparelho. Só aparecem os cadastros com o mesmo e-mail da conta
@@ -36,7 +37,6 @@ fun EscolherNegocianteScreen(
     emailDaConta: String?,
     onEscolher: (Negociante) -> Unit,
     onCriar: (nome: String, email: String, telefone: String) -> Unit,
-    onSouEntregador: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val negociantes = negociantesDaConta(negociantes, emailDaConta)
@@ -98,13 +98,13 @@ fun EscolherNegocianteScreen(
             }
         }
 
+        // Entregador não se declara aqui: a equipe o cadastra no Firestore
         item {
-            OutlinedButton(
-                onClick = onSouEntregador,
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
-            ) {
-                Text("Sou só entregador")
-            }
+            Text(
+                "É entregador? Peça à equipe para liberar sua conta.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 16.dp)
+            )
         }
     }
 }

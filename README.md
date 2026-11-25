@@ -16,7 +16,7 @@ são guiados no processo de entrega.
 
 ## Perfis de usuário
 
-O perfil vem da conta: a conta ligada a um negociante entra como **Negociante**, e a conta que tocou em **Sou só entregador** entra como **Entregador**. Para usar o outro perfil, toque em **Sair** e entre com a conta daquele papel.
+O perfil vem da conta: o e-mail que estiver na coleção **`entregadores`** do Firestore entra como **Entregador**; as demais contas entram como **Negociante**. O entregador é cadastrado pela equipe no console do Firebase (documento com o e-mail da conta como id), e o [`firestore.rules`](firestore.rules) impede que o app grave nessa lista. Para usar o outro perfil, toque em **Sair** e entre com a conta daquele papel.
 
 ### Conta e negociante
 
@@ -25,7 +25,7 @@ negociante, a tela **Quem é você?** oferece criar o próprio cadastro (**Ainda
 tenho cadastro**) ou escolher um já existente; quem só entrega toca em **Sou só
 entregador**. O entregador não cadastra negociantes: cada um se cadastra. O vínculo
 fica no cadastro do negociante e segue para a nuvem, então vale em qualquer
-aparelho. Só aparecem os cadastros com o mesmo e-mail da conta logada que ainda não estão ligados a ninguém. Na Vitrine,
+aparelho. Só aparecem os cadastros com o mesmo e-mail da conta logada que ainda não estão ligados a ninguém. Contas de entregador não passam por essa tela. Na Vitrine,
 **Meus dados** corrige nome, e-mail e telefone, e **Não sou eu** desfaz o vínculo.
 
 ### Negociante

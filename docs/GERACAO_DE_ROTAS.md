@@ -107,7 +107,7 @@ uma só, **Não sou eu** na Vitrine para trocar de negociante entre os passos).
    aba **Produtos**, cadastrar um produto.
 2. Conta do comprador: aba **Entrega**, marcar e salvar o ponto.
 3. Aba **Vitrine**: comprar o produto.
-4. Tocar em **Sair** e entrar com uma conta de **Entregador** (no primeiro acesso, **Sou só entregador**).
+4. Tocar em **Sair** e entrar com uma conta de **Entregador** (cadastrada na coleção `entregadores` do Firestore).
 5. Na entrega criada, tocar em **Rota**: o traçado vai até o vendedor, e **Ligar para
    vendedor** abre o discador com o telefone dele.
 6. Tocar em **Retirar pacote**: o traçado é recalculado até o comprador.

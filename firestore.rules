@@ -1,0 +1,23 @@
+rules_version = '2';
+
+// Regras do Cloud Firestore do Marketplace.
+// Aplicar em: console do Firebase > Firestore Database > Regras > colar e Publicar.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Lista de entregadores: um documento por conta, com o e-mail (em minúsculas) como id.
+    // Cada conta só consulta o próprio documento, e ninguém grava pelo app:
+    // entregadores são cadastrados pela equipe no console, que não passa por estas regras.
+    match /entregadores/{email} {
+      allow read: if request.auth != null
+                  && request.auth.token.email != null
+                  && request.auth.token.email.lower() == email;
+      allow write: if false;
+    }
+
+    // Demais coleções (produtos, negociantes, pedidos, avaliacoes): só com login.
+    match /{colecao}/{documento=**} {
+      allow read, write: if request.auth != null && colecao != 'entregadores';
+    }
+  }
+}
