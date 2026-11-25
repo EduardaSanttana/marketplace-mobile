@@ -27,7 +27,8 @@ import edu.ifsp.marketplace.ui.cadastro.FormularioNegociante
  * o próprio cadastro. O entregador não cadastra negociantes; cada um se cadastra.
  *
  * O vínculo vai para o cadastro do negociante e segue para a nuvem, então vale
- * em qualquer aparelho. Negociantes já ligados a outra conta aparecem bloqueados.
+ * em qualquer aparelho. Só aparecem os cadastros com o mesmo e-mail da conta
+ * logada e ainda sem conta, para ninguém assumir o negociante de outra pessoa.
  */
 @Composable
 fun EscolherNegocianteScreen(
@@ -38,6 +39,8 @@ fun EscolherNegocianteScreen(
     onSouEntregador: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val negociantes = negociantesDaConta(negociantes, emailDaConta)
+
     // Sem negociantes, o formulário já abre: não há o que escolher
     var criando by remember { mutableStateOf(false) }
 
@@ -86,14 +89,11 @@ fun EscolherNegocianteScreen(
         if (!criando) items(negociantes, key = { it.id }) { n ->
             Button(
                 onClick = { onEscolher(n) },
-                enabled = !n.temConta,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text("Sou ${n.nome}")
-                    if (n.temConta) {
-                        Text("já ligado a outra conta", style = MaterialTheme.typography.labelSmall)
-                    }
+                    Text(n.email, style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -107,4 +107,14 @@ fun EscolherNegocianteScreen(
             }
         }
     }
+}
+
+/**
+ * Cadastros que a conta logada pode assumir: ainda sem conta e com o mesmo
+ * e-mail dela (sem diferenciar maiúsculas). Sem e-mail na conta, nenhum.
+ */
+internal fun negociantesDaConta(negociantes: List<Negociante>, emailDaConta: String?): List<Negociante> {
+    val email = emailDaConta?.trim().orEmpty()
+    if (email.isEmpty()) return emptyList()
+    return negociantes.filter { !it.temConta && it.email.trim().equals(email, ignoreCase = true) }
 }

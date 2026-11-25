@@ -25,7 +25,7 @@ negociante, a tela **Quem é você?** oferece criar o próprio cadastro (**Ainda
 tenho cadastro**) ou escolher um já existente; quem só entrega toca em **Sou só
 entregador**. O entregador não cadastra negociantes: cada um se cadastra. O vínculo
 fica no cadastro do negociante e segue para a nuvem, então vale em qualquer
-aparelho. Negociantes já ligados a outra conta aparecem bloqueados. Na Vitrine,
+aparelho. Só aparecem os cadastros com o mesmo e-mail da conta logada que ainda não estão ligados a ninguém. Na Vitrine,
 **Meus dados** corrige nome, e-mail e telefone, e **Não sou eu** desfaz o vínculo.
 
 ### Negociante

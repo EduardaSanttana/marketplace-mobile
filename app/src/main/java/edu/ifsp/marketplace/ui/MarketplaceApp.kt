@@ -1,5 +1,8 @@
 package edu.ifsp.marketplace.ui
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -229,11 +232,20 @@ fun MarketplaceApp(
                         actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     actions = {
-                        IconButton(onClick = { trocarPerfil() }) {
-                            Icon(
-                                Icons.Filled.SwapHoriz,
-                                contentDescription = "Trocar de perfil"
-                            )
+                        // Com o nome do outro perfil escrito, a saída do modo entregador fica à vista
+                        val outroPerfil = if (perfil == PerfilUsuario.NEGOCIANTE) PerfilUsuario.ENTREGADOR
+                        else PerfilUsuario.NEGOCIANTE
+                        TextButton(
+                            onClick = { trocarPerfil() },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            modifier = Modifier.semantics {
+                                contentDescription = "Trocar para o perfil ${outroPerfil.rotulo}"
+                            }
+                        ) {
+                            Icon(Icons.Filled.SwapHoriz, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text(outroPerfil.rotulo, modifier = Modifier.padding(start = 4.dp))
                         }
                         IconButton(onClick = { mostrarDialogoSaida = true }) {
                             Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Sair da conta")
